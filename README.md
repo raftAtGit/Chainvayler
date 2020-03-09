@@ -75,13 +75,20 @@ with _Chainvayler_. I had said _almost transparent_, right? ;)
 
 ### [Overview](#bank-sample-overview)
 
-_Chainvayler_ comes with a _Bank_ sample, for both demonstration and testing purposes. The _Bank_ sample can be found [here](bank-sample/src/main/java/raft/chainvayler/samples/bank).
+_Chainvayler_ comes with a [_Bank_](bank-sample/src/main/java/raft/chainvayler/samples/bank) sample, for both demonstration and testing purposes.
 
 Below is the class diagram of the _Bank_ sample:
 ![Class diagram](https://chainvayler-public.s3-us-west-2.amazonaws.com/images/bank-sample-class-diagram.png) 
 
-Nothing much fancy here. Apparently this is a toy diagram for a real banking application, but hopefully good enough to demonstrate _Chainvayler_'s
-capabilities.
+Nothing much fancy here. Apparently this is a toy diagram for a real banking application, but hopefully good enough to demonstrate _Chainvayler_'s capabilities.
+
+[_Bank_](bank-sample/src/main/java/raft/chainvayler/samples/bank/Bank.java) class is the _root_ class of this object graph. It's used to get a _chained_ instance of the object graph via _Chainvayler_. Every object reachable directly or indirectly from the root _Bank_ object will be _chained_ (persisted/replicated). Notice _Bank_ class has super and sub classes and even has a reference to another _Bank_ object, doesn't matter if it is a subclass or superclass or a _Bank_ class itself.
+
+For the sake of brevity, I've skipped the class methods in the diagram but included a few to demonstrate _Chainvayler_'s capabilities:
+  * _Person_ and _RichPerson_ constructors throw an exception if _name_ has a special value
+  * _SecretCustomer_ throws an exception whenever _getName_ is called
+  * _SecretCustomer_ resides in a different package, I will tell in a bit what it demonstrates
+  
 
 ### [Running the sample in Kubernetes](#bank-sample-run-kubernetes)
 ### [Running the sample locally](#bank-sample-run-local)
