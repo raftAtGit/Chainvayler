@@ -4,9 +4,9 @@
 * [What is this?](#what-is-this)
 * [Introduction](#introduction)
 * [Bank sample](#bank-sample)
-  * [Overview](#bank-sample-overview)
-  * [Running the sample in Kubernetes](#bank-sample-run-kubernetes)
-  * [Running the sample locally](#bank-sample-run-local)
+  * [Overview](#overview)
+  * [Running the sample in Kubernetes](#running-the-sample-in-kubernetes)
+  * [Running the sample locally](#running-the-sample-locally)
 * [How it works?](#how-it-works)
 * [Determinism](#determinism)
 * [Limitations](#limitations)
@@ -90,7 +90,7 @@ For the sake of brevity, I've skipped the class methods in the diagram but inclu
   * _SecretCustomer_ resides in a different package, I will tell in a bit what it demonstrates
   
 
-### [Running the sample in Kubernetes](#bank-sample-run-kubernetes)
+### [Running the sample in Kubernetes](#running-the-sample-in-kubernetes)
 ### [Running the sample locally](#bank-sample-run-local)
 
 ## [How it works?](#how-it-works)
