@@ -1,0 +1,18 @@
+// injected into all IsChained constructor(s) as catch clause
+//
+// if not encapsulated in another transaction, outer most and top level constructor initiates a transaction
+// which is closed at the actual class constructor.
+//
+// but since we cannot try/finally around a super/this constructor call, we need to 
+// catch any exception locally and close transaction 
+   
+// 0: context class name
+// 1: current class name
+
+// System.out.println("{1} catch, this: " + Utils.identityCode(this));
+
+if ({0}.isBound()) '{'
+	{0}.getInstance().maybeEndTransaction(this);
+	{0}.getInstance().maybeUnlockObjectPool(this);
+}
+throw $e;

@@ -1,0 +1,12 @@
+// TODO
+
+// 0: context class name
+// 1: current class name
+
+if ({0}.isBound()) '{' 
+	Context context = {0}.getInstance();
+	
+	if (!context.isInTransaction() && (context.getConstructorCall() == null)) '{'
+		context.setConstructorCall(new ConstructorCall({1}.class, $sig, $args));
+	}
+}

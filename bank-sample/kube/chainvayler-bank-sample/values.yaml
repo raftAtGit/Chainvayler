@@ -1,0 +1,48 @@
+# Default values
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replication:
+  # is replication enabled?
+  enabled: true 
+  # number of each kind of peers, sum should be >= 3
+  writerCount: 3
+  readerCount: 0
+  readerWriterCount: 0
+
+
+persistence:
+  # is persistence enabled?
+  enabled: false
+  # mount persistent volumes?
+  mountVolumes: false
+  # storageClassName for volumeClaimTemplates
+  storageClass: default
+  # disk size for volumeClaimTemplates
+  diskSize: 1Gi
+
+
+load:
+  # number of writer threads per writer peer 
+  writers: 5
+  # number of reader threads per reader peer
+  readers: 5
+  # number of actions each writer thread performs. one action creates multiple random transactions
+  # note: regardless of actions, initially (50 + random(50)) customers and accounts are created
+  actions: 1000
+
+image:
+  tag: latest
+  pullPolicy: Always
+
+java:
+  enableAssertions: false
+  maxMemory: 1024m
+  maxStatsMemory: 2048m
+  
+hazelcast:
+  logging:
+    # set to none to disable Hazelcast logging
+    type: jdk    
+
+

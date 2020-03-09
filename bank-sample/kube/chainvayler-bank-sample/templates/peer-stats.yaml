@@ -1,0 +1,41 @@
+# peer stats service and deployment. 
+# peers register themselves to this service via RMI
+# displays peer stats every 5 seconds
+apiVersion: v1
+kind: Service
+metadata:
+  name: chainvayler-peer-stats
+  labels:
+    name: chainvayler-peer-stats
+spec:
+  type: ClusterIP
+  selector:
+    app: chainvayler-peer-stats 
+  ports:
+  - name: registry
+    port: 1099
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chainvayler-peer-stats
+  labels:
+    name: chainvayler-peer-stats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chainvayler-peer-stats
+  template:
+    metadata:
+      labels:
+        app: chainvayler-peer-stats 
+        name: chainvayler-peer-stats
+    spec:
+      containers:
+      - name: chainvayler-sample
+        image: raft/chainvayler-bank-sample:latest
+        command: ["sh", "-c", "java -Xmx{{- .Values.java.maxStatsMemory }} -cp $(cat /chainvayler-bank-sample/classpath) raft.chainvayler.samples.bank.rmi.PeerStats"]
+        imagePullPolicy: Always
+      imagePullSecrets:
+      - name: regcred

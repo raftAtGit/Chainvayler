@@ -1,0 +1,62 @@
+# sample
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: chainvayler-sample-reader
+spec:
+  replicas: {{ .Values.replication.enabled | ternary .Values.replication.readerCount 1 }}
+  podManagementPolicy: Parallel
+  serviceName: chainvayler-sample-reader
+  selector:
+    matchLabels:
+      name: chainvayler-sample-reader
+  volumeClaimTemplates:
+  {{- if and .Values.persistence.enabled .Values.persistence.mountVolumes }}
+  - metadata:
+      name: peer-disk
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      storageClassName: {{ $.Values.persistence.storageClass }}
+      resources:
+        requests:
+          storage: {{ $.Values.persistence.diskSize }}
+  {{- end }}
+  template:
+    metadata:
+      labels:
+        name: chainvayler-sample-reader
+        hazelcast: chainvayler-sample
+    spec:
+      volumes:
+      {{- if not (and .Values.persistence.enabled .Values.persistence.mountVolumes) }}
+      - name: peer-disk
+        emptyDir: {}
+      {{- end }}
+
+      containers:
+      - name: chainvayler-sample-reader
+        image: raft/chainvayler-bank-sample:{{- .Values.image.tag }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        
+        command: ["sh", "-c", "java -Xmx{{- .Values.java.maxMemory }} \
+                    {{- if .Values.java.enableAssertions }}
+                    -ea \
+                    {{- end }}
+                    -Dhazelcast.logging.type={{- .Values.hazelcast.logging.type }} \
+                    -cp $(cat /chainvayler-bank-sample/classpath) raft.chainvayler.samples.bank.Main \
+                    --readers {{ .Values.load.readers }} \
+                    --writers 0 \
+                    --stopReaders false \
+                    --actions {{ .Values.load.actions }} \
+                    --replication {{ .Values.replication.enabled }} \
+                    --persistence {{ .Values.persistence.enabled }} \
+                    --txIdReserveSize 0 \
+                    --kubernetes true \
+                    --kubernetesServiceName chainvayler-sample-hazelcast.{{- .Release.Namespace }}.svc.cluster.local \
+                    --peerStatsRegistry chainvayler-peer-stats"]
+
+        volumeMounts:
+        - mountPath: /chainvayler-bank-sample/persist/
+          name: peer-disk
+          

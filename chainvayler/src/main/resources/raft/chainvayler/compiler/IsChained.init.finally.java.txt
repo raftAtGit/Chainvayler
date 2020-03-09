@@ -1,0 +1,18 @@
+// injected into all IsChained constructor(s) as finally clause
+//
+// if not encapsulated in another transaction, outer most and top level constructor initiates a transaction
+// which is closed at the actual class' constructor.
+//
+// this block assures, actual class' constructor actually closes transaction if still open
+
+// 0: context class name
+// 1: current class name
+
+
+// System.out.println("{1} finally, this: " + Utils.identityCode(this));
+
+if ({0}.isBound()) '{'
+	{0}.getInstance().maybeEndTransaction(this, {1}.class);
+	{0}.getInstance().maybeUnlockObjectPool(this, {1}.class);
+}
+

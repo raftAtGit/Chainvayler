@@ -1,0 +1,49 @@
+plugins {
+    id 'java'
+    id 'maven-publish'
+}
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+
+group = 'raft.chainvayler'
+version = '0.1'
+
+repositories {
+	jcenter()
+}
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'chainvayler'
+            from components.java
+            
+            artifact sourcesJar {
+                classifier "sources"
+            }
+        }
+    }
+}
+
+dependencies {
+    
+	compile 'org.prevayler:prevayler-core:2.6',
+			'org.prevayler:prevayler-factory:2.6',
+			'org.javassist:javassist:3.26.0-GA',
+    		'com.hazelcast:hazelcast:3.12.3',
+    		'com.hazelcast:hazelcast-kubernetes:1.5.2'
+    		
+    testCompile 'junit:junit:4.12'
+}
+
+jar {
+    manifest {
+    	from 'src/main/agent_manifest.txt'
+    }
+}

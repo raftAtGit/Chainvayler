@@ -1,0 +1,29 @@
+// injected into <ReturnType> @Modification methods in IsChained
+// original method is renamed to private <ReturnType> __chainvayler__<MethodName>(..)  
+   
+// 0: context class name
+// 1: method original name
+// 2: method return type
+
+
+'{'
+		if (!{0}.isBound()) 
+			return __chainvayler__{1} ( $$ );
+		
+		Context context = {0}.getInstance();
+
+		if (context.isInTransaction() || context.isInRemoteTransaction()) 
+			return __chainvayler__{1} ( $$ );
+		
+		if (context.isInQuery())
+			throw new ModificationInSynchException();
+		
+		context.setInTransaction(true);
+		try '{'
+			return ( {2} ) context.prevayler.execute(new MethodTransactionWithQuery (
+					this, new MethodCall("__chainvayler__{1}", $class, $sig), $args ));
+		} finally '{'
+			context.setInTransaction(false);
+		}
+
+}

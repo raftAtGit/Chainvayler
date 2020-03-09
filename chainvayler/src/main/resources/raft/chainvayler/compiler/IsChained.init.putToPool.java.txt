@@ -1,0 +1,42 @@
+// injected into top level IsChained constructor(s), unless there is a call to this constructor
+// injected just after super constructor is called before fields are initialized (normally not possible with plain Java code) 
+// puts created object into pool and gets an id
+   
+// 0: context class name
+// 1: current class name
+
+if ({0}.isBound()) '{'
+	Context context = {0}.getInstance();
+	
+	if (context.isInTransaction() || context.isInRemoteTransaction()) '{'
+		this.__chainvayler_Id = context.root.putObject(this);
+		if (Context.DEBUG) System.out.printf("in transaction (%s) or remote transaction (%s), got id %s for %s \n", 
+				new Object[] '{' Boolean.valueOf(context.isInTransaction()), Boolean.valueOf(context.isInRemoteTransaction()), this.__chainvayler_Id, Utils.identityCode(this)});
+		// new Exception().printStackTrace(System.out);
+	} else '{'
+		if (Context.DEBUG) System.out.println("starting constructor transaction @{1} for " + Utils.identityCode(this));
+		// new Exception("starting constructor transaction @{1}").printStackTrace(System.out);
+		context.setInTransaction(true);
+		context.setConstructorTransactionInitiater(this);
+		
+		try '{'
+			ConstructorCall constructorCall = context.getConstructorCall(); 
+			if (constructorCall == null) '{'
+				if (getClass() != {1}.class)
+					throw new Error("subclass constructor " + getClass().getName() + " is running but there is no stored constructorCall");
+				
+				constructorCall = new ConstructorCall({1}.class, $sig, $args);
+			}
+			this.__chainvayler_Id = (Long) context.prevayler.execute(new ConstructorTransaction(this, constructorCall));
+			if (Context.DEBUG) System.out.println("from constructor transaction, got id " + this.__chainvayler_Id + ": " + Utils.identityCode(this));
+		} finally '{'
+			context.setConstructorCall(null);
+		}
+	}
+} else if (Context.isInRecovery()) '{'
+	this.__chainvayler_Id = Context.getRecoveryRoot().putObject(this);
+} else '{'
+	// no Chainvayler, object will not have an id
+	this.__chainvayler_Id = null;
+}
+

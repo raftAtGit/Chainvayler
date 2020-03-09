@@ -1,0 +1,9 @@
+// injected into root class
+// 0: context class name
+	 
+	public final java.io.File takeSnapshot() throws Exception '{'
+		if (! {0}.isBound())
+		   throw new NotChainedException("no chainvayler context found");
+		
+		return {0}.getInstance().prevayler.takeSnapshot();
+	}

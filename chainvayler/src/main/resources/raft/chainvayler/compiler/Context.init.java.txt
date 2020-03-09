@@ -1,0 +1,7 @@
+// context class constructor
+
+// 0: root class name
+	 
+public __Chainvayler(org.prevayler.Prevayler prevayler, RootHolder root) '{'
+	super(prevayler, root);
+}

@@ -1,0 +1,9 @@
+// injected into IsChained most super type constructor(s), unless there is a call to this constructor
+// checks if runtime type of class is instrumented 
+   
+// 0: context class name
+
+		if ({0}.isBound()) '{' 
+			{0}.getInstance().classCache.validateClass(getClass());
+		}
+

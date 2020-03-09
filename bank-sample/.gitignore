@@ -1,0 +1,14 @@
+/persist
+/build
+/bin
+/logs/
+/runs/
+/pools
+/libs
+/.settings
+/.gradle
+/.project
+/.classpath
+/*.launch
+/wtf.yaml
+

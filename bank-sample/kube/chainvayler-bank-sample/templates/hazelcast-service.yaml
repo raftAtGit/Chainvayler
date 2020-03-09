@@ -1,0 +1,16 @@
+# headless service for Hazelcast DNS based discovery
+# see https://github.com/hazelcast/hazelcast-kubernetes
+apiVersion: v1
+kind: Service
+metadata:
+  name: chainvayler-sample-hazelcast
+  labels:
+    name: chainvayler-sample-hazelcast
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    hazelcast: chainvayler-sample 
+  ports:
+  - name: hazelcast
+    port: 5701
