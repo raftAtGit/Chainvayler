@@ -8,8 +8,10 @@
   * [Running the sample in Kubernetes](#running-the-sample-in-kubernetes)
   * [Running the sample locally](#running-the-sample-locally)
 * [How it works?](#how-it-works)
+* [Performance](#performance)
 * [Determinism](#determinism)
 * [Limitations](#limitations)
+  * [Garbage collection](#garbage-collection)
 * [FAQ and more](#faq-and-more)
 
 ## [What is this?](#what-is-this)
@@ -68,8 +70,7 @@ For sure, there is no point in persisting/replicating an object that should soon
 in the next JVM session. 
 
 BTW, above is not a _hard_ requirement. Even if your _chained_ object is not reachable from the _root_, it will be persisted/replicated 
-but will be garbage collected later on if there are no other references to it. And yes, this also means garbage collection works as expected 
-with _Chainvayler_. I had said _almost transparent_, right? ;)
+but will be garbage collected later on if there are no other references to it. Only And yes, this also means garbage collection works as expected with _Chainvayler_. I had said _almost transparent_, right? ;)
 
 ## [Bank sample](#bank-sample)
 
@@ -91,12 +92,105 @@ For the sake of brevity, I've skipped the class methods in the diagram but inclu
   
 
 ### [Running the sample in Kubernetes](#running-the-sample-in-kubernetes)
+
+The easiest way to see _Chainvayler_ in action is to run the _Bank_ sample in _Kubernetes_ via provided _Helm_ charts.
+
+In `Chainvayler/bank-sample` folder, run the following command:
+```
+helm install kube/chainvayler-bank-sample/ --name chainvayler-sample 
+```
+
+This will by default create 3 writer pods and the watcher application `peer-stats` to follow the process. Any writer or reader pods will register themselves to `peer-stats` pod via RMI and you can follow the process via `peer-stats` pod:
+
+```
+kubectl logs chainvayler-peer-stats-<ID> --follow
+```
+
+The output will be similar to below (will be updated every 5 seconds):
+```
+created RMI registry
+bound PeerManager to registry
+-- started | completed | pool size  | tx count   | tx/second | own tx count | own tx/sec | read count     | reads/sec --
+------------------------------------------------------------------------------------------------------------------------
+registered peer, count: 1
+registered peer, count: 2
+registered peer, count: 3
+-- started | completed | pool size  | tx count   | tx/second | own tx count | own tx/sec | read count     | reads/sec --
+   false     false       -1           1            0.05        0              0.00         0                0.00
+   false     false       4            1            0.05        0              0.00         0                0.00
+   true      false       4            1            40.00       0              0.00         0                0.00
+------------------------------------------------------------------------------------------------------------------------
+-- started | completed | pool size  | tx count   | tx/second | own tx count | own tx/sec | read count     | reads/sec --
+   true      false       15154        19607        3891.25     6418           1273.41      0                0.00
+   true      false       15161        19624        3897.52     6427           1276.21      0                0.00
+   true      false       15184        19644        3893.76     6782           1344.43      0                0.00
+------------------------------------------------------------------------------------------------------------------------
+-- started | completed | pool size  | tx count   | tx/second | own tx count | own tx/sec | read count     | reads/sec --
+   true      false       39019        45812        4555.33     14908          1482.35      0                0.00
+   true      false       39021        45811        4556.50     14922          1484.19      0                0.00
+   true      false       39049        45827        4553.56     15986          1588.28      0                0.00
+------------------------------------------------------------------------------------------------------------------------
+-- started | completed | pool size  | tx count   | tx/second | own tx count | own tx/sec | read count     | reads/sec --
+   true      false       69130        77516        5141.67     25268          1675.89      0                0.00
+   true      false       69143        77547        5144.76     25216          1672.93      0                0.00
+   true      false       69146        77547        5141.35     27053          1793.49      0                0.00
+------------------------------------------------------------------------------------------------------------------------
+-- started | completed | pool size  | tx count   | tx/second | own tx count | own tx/sec | read count     | reads/sec --
+   true      true        84774        94390        5249.50     32033          1787.16      0                0.00
+   true      true        84774        94390        5228.20     31971          1770.85      0                0.00
+   true      true        84774        94390        5278.17     30385          1812.62      0                0.00
+------------------------------------------------------------------------------------------------------------------------
+stopped all readers
+will compare results..
+transaction counts are the same! 94390
+--all banks are identical!!
+pool sizes are same  84774 == 84774
+pool sizes are same  84774 == 84774
+all pool classes are the same
+this pair looks identical
+this pair looks identical
+this pair looks identical
+-- all pools are identical!!
+average tx/second: 5251.96, own tx/second: 1790.21
+```
+
+So, what happened (with default values) exactly is:
+* We had launched 3 instances of _Bank_ sample where _replication_ is enabled and _persistence_ is disabled
+* They all registered themselves to `peer-stats` application to provide some metrics
+* They started to make random _write_ operations over their copy of the _Bank_ with 5 threads
+* `peer-stats` application collected and printed their metrics every 5 seconds
+* After all writers are finished:
+  * `peer-stats` got final details of each one's _Bank_ object and also _Chainvayler_'s implemenation details, like transaction count and internal object pool
+  * Compared each one of them against any other them
+  * Checked if they are __completely identical__
+* Printed the final statistics
+
+Welcome to _Chainvayler_ world! You just witnessed a POJO graph is _automagically_ and _~transparently_ replicated!
+
+Feel free to try different settings: more writers, some readers, some writer-readers or more write actions. See the [values.yaml](bank-sample/kube/chainvayler-bank-sample/values.yaml) file for all options.
+
+If you enable _persistence_ and _persistence.mountVolumes_ (mounting external disks), feel free to kill any pod any time. When restarted, they will continue with the exact same sate where they left.
+
+
 ### [Running the sample locally](#bank-sample-run-local)
 
 ## [How it works?](#how-it-works)
 
+## [Performance](#performance)
+
 ## [Determinism](#determinism)
 
 ## [Limitations](#limitations)
+
+### [Garbage collection](#garbage-collection)
+
+When _replication_ is not enabled, garbage collection works as expected. Any _chained_ object created but not accessible from the _root_ object will be garbage collected soon if there are no other references to it. This is achieved by holding references to _chained_ objects via _weak_ references. 
+
+However, this is not possible when _replication_ is enabled. Imagine a _chained_ object is created on a JVM and it's not accessible from the _root_ object, there are only some other local references to it. Those other local references will prevent it to be garbage collected. 
+
+When this _chained_ object is replicated to other JVMs, there won't be any local references to it, and hence nothing will stop it to be garbage collected if it's not accessible from the _root_ object. 
+
+So, unfortunately, looks like, we need to keep a reference to all created _chained_ objects in replication mode and prevent them to be garbage collected. 
+
 
 ## [FAQ and more](#faq-and-more)
