@@ -108,7 +108,6 @@ public class Chainvayler<T> {
 			this.systemVersionField = Utils.getDeclaredField("_systemVersion", prevalerGuard); 
 			
 			this.rootHolder = prevayler.prevalentSystem();
-			rootHolder.onRecoveryCompleted();
 			
 			if (config.isReplicationEnabled()) {
 				this.hazelcastPrevayler = new HazelcastPrevayler((PrevaylerImpl<RootHolder>) prevayler, config.getHazelcastConfig(), config.getReplicationConfig());
@@ -120,6 +119,7 @@ public class Chainvayler<T> {
 			if (!rootHolder.isInitialized()) {
 				prevayler.execute(new InitRootTransaction((Class)rootClass));
 			}
+			rootHolder.onRecoveryCompleted(!config.isReplicationEnabled());
 			
 			instance = this;
 			

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Random;
 
 import raft.chainvayler.Config;
+import raft.chainvayler.impl.Context;
 import raft.chainvayler.samples.bank.rmi.Peer;
 import raft.chainvayler.samples.bank.rmi.PeerManager;
 import raft.chainvayler.samples.bank.secret.SecretCustomer;
@@ -52,6 +53,9 @@ public class Main {
 
 		if (options.peerStatsRegistry != null) 
 			registerPeerRmi();
+		
+		// TODO remove
+		Context.DEBUG = options.debug;
 		
 		Bank bank = Chainvayler.create(Bank.class, config);
 		
@@ -498,6 +502,7 @@ public class Main {
 		public int actions = 100;
 		public boolean stopReaders = true;
 		public String peerStatsRegistry;
+		public boolean debug = false;
 		
 		@Override
 		public String toString() {
@@ -511,7 +516,8 @@ public class Main {
 				   + "\n    readers: " + readers
 				   + "\n    actions: " + actions 
 				   + "\n    stopReaders: " + stopReaders
-				   + "\n    peerStatsRegistry: " + peerStatsRegistry;
+				   + "\n    peerStatsRegistry: " + peerStatsRegistry
+				   + "\n    debug: " + debug;
 		}
 	}
 	
@@ -548,6 +554,9 @@ public class Main {
 		if (comLine.containsArg("--peerStatsRegistry"))
             options.peerStatsRegistry = comLine.getArg("--peerStatsRegistry");
 
+		if (comLine.containsArg("--debug"))
+            options.debug  = Boolean.parseBoolean(comLine.getArg("--debug"));
+		
         if (comLine.isUnconsumed())
             throw new IllegalArgumentException("Unknown args: " + comLine.getUnconsumed());
         
@@ -574,6 +583,7 @@ public class Main {
 	    		   "                                           note: regardless of actions, initially (50 + random(50))\n" + 
 	    		   "                                                 customers and accounts are created");
 	    ps.println("    --peerStatsRegistry <host|IP>        : if provided, peer is registered by using this RMI registry");
+	    ps.println("    --debug <true|false*>        		 : enable debug logging?");
 	}
 	
 	public static void main(String[] args) throws Exception {

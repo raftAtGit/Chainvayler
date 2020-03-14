@@ -1,6 +1,6 @@
 package raft.chainvayler.samples.bank.rmi;
 
-import java.rmi.ConnectException;
+import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.ArrayList;
@@ -112,7 +112,7 @@ public class PeerStats {
 					if (peer.hasWriters())
 						allWritersCompleted = false;
 				}
-			} catch (ConnectException e) {
+			} catch (RemoteException e) {
 				e.printStackTrace();
 				System.out.println("peer seems terminated, removing..");
 				peerManager.unregisterPeer(peer);

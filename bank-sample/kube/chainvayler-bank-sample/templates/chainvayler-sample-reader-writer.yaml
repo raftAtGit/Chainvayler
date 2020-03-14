@@ -4,7 +4,7 @@ kind: StatefulSet
 metadata:
   name: chainvayler-sample-reader-writer
 spec:
-  replicas: {{ .Values.replication.enabled | ternary .Values.replication.readerWriterCount 1 }}
+  replicas: {{ .Values.replication.enabled | ternary .Values.replication.readerWriterCount 0 }}
   podManagementPolicy: Parallel
   serviceName: chainvayler-sample-reader-writer
   selector:
@@ -33,6 +33,9 @@ spec:
       - name: peer-disk
         emptyDir: {}
       {{- end }}
+      - name: logging-config
+        configMap:
+           name: chainvayler-logging-config
 
       containers:
       - name: chainvayler-sample-reader-writer
@@ -44,6 +47,7 @@ spec:
                     -ea \
                     {{- end }}
                     -Dhazelcast.logging.type={{- .Values.hazelcast.logging.type }} \
+                    -Djava.util.logging.config.file=/chainvayler-bank-sample/logging.properties \
                     -cp $(cat /chainvayler-bank-sample/classpath) raft.chainvayler.samples.bank.Main \
                     --readers {{ .Values.load.readers }} \
                     --writers {{ .Values.load.writers }} \
@@ -53,9 +57,13 @@ spec:
                     --txIdReserveSize 0 \
                     --kubernetes true \
                     --kubernetesServiceName chainvayler-sample-hazelcast.{{- .Release.Namespace }}.svc.cluster.local \
-                    --peerStatsRegistry chainvayler-peer-stats"]
+                    --peerStatsRegistry chainvayler-peer-stats \
+                    --debug {{ .Values.chainvayler.debug }}" ]
 
         volumeMounts:
-        - mountPath: /chainvayler-bank-sample/persist/
-          name: peer-disk
+        - name: peer-disk
+          mountPath: /chainvayler-bank-sample/persist/
+        - name: logging-config
+          subPath: logging.properties
+          mountPath: /chainvayler-bank-sample/logging.properties
           

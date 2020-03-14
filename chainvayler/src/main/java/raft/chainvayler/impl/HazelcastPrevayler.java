@@ -15,6 +15,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
@@ -44,10 +45,12 @@ import com.hazelcast.config.Config;
 import com.hazelcast.core.EntryEvent;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.core.IAtomicLong;
-import com.hazelcast.core.ICompletableFuture;
-import com.hazelcast.core.IMap;
+import com.hazelcast.cp.IAtomicLong;
+import com.hazelcast.map.IMap;
+import com.hazelcast.map.MapPartitionLostEvent;
 import com.hazelcast.map.listener.EntryAddedListener;
+import com.hazelcast.map.listener.MapPartitionLostListener;
+import com.hazelcast.spi.exception.RetryableHazelcastException;
 
 
 public class HazelcastPrevayler implements Prevayler<RootHolder> {
@@ -70,6 +73,9 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	 * */
 	private static final boolean USE_LOCAL_TX_MAP = true;
 	
+	/** Store transactions in global Hazelcast map asynchronously or not? */
+	private static final boolean SEND_TX_ASYNC = true;
+	
 	private final Prevayler<RootHolder> prevayler;
 	private final TransactionPublisher publisher;
 	private final Serializer journalSerializer;
@@ -88,6 +94,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	private SortedSet<Long> localTxIds = Collections.synchronizedSortedSet(new TreeSet<>());
 	private final Object lastTxIdLock = new Object();
 	private final Object commitLock = new Object();
+	private boolean initialized = false;
 	
 	private final int txIdReserveSize;
 	private final Queue<Long> reservedTxIds = new LinkedList<>();
@@ -107,6 +114,8 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		lastTxId = systemVersionField.getLong(prevalerGuard);
 		publisher.subscribe(transactionSubscriber, lastTxId + 1);
 		
+		System.out.printf("local lastTxId: %s \n", lastTxId);
+		
 		this.txIdReserveSize = replicationConfig.getTxIdReserveSize(); 
 		
 		System.out.println("initializing Hazelcast");
@@ -119,11 +128,26 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		
 		System.out.println("Hazelcast is ready");
 		
-		this.globalTxId = hazelcast.getCPSubsystem().getAtomicLong("txId");
+		System.out.println("assertionsEnabled: " + assertionsEnabled);
+		if (assertionsEnabled)
+			assertionExecutor = Executors.newCachedThreadPool();
+		
+		this.globalTxId = getGlobalTxIdWithRetries(10);
 		this.globalTxMap = hazelcast.getMap("transactions");
 		
 		globalTxMap.addEntryListener(entryAddedListener, true);
+		globalTxMap.addPartitionLostListener(mapPartitionLostListener);
 		
+		final long txId = getGlobalTxId();
+		if (txId > 1) {
+			receiveInitialTransactions(txId, 10);
+		}
+		
+		initialized = true;
+		commitCheckerThread.start();
+	}
+	
+	private long getGlobalTxId() {
 		Lock txIdLock = hazelcast.getCPSubsystem().getLock("txId");
 		txIdLock.lock();
 		final long txId;
@@ -139,32 +163,78 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		} finally {
 			txIdLock.unlock();
 		}
-		
-		System.out.println("assertionsEnabled: " + assertionsEnabled);
-		if (assertionsEnabled)
-			assertionExecutor = Executors.newCachedThreadPool();
-		
-		
-		if (txId > 1) {
-			System.out.printf("requesting initial transactions [%s - %s] \n", 2, txId);
-			
-			Set<Long> keys = new HashSet<>();
-			for (long l = 2; l <= txId; l++)
-				keys.add(l);
-			
-			Map<Long, TransactionTimestamp> oldTxs = globalTxMap.getAll(keys);
-			
-			if (USE_LOCAL_TX_MAP) {
-				localTxMap.putAll(oldTxs);
-			}
-
-			maybeCommitTransactions();
-		}
-		
-//		Thread.sleep(5000);
-		commitCheckerThread.start();
+		return txId;
 	}
 
+	private IAtomicLong getGlobalTxIdWithRetries(int maxRetries) throws Exception {
+		IAtomicLong globalTxId = null;
+		int retryCount = 0;
+		while (globalTxId == null) {
+			try {
+				globalTxId = hazelcast.getCPSubsystem().getAtomicLong("txId");
+			} catch (RetryableHazelcastException e) {
+				retryCount++;
+				if (retryCount < maxRetries) {
+					System.out.printf("caught RetryableHazelcastException, retryCount: %s, will retry \n", retryCount);
+					e.printStackTrace();
+				} else {
+					System.out.printf("caught RetryableHazelcastException, out of retries giving up \n");
+					throw new IllegalStateException("couldnt get AtomicLong, giving up", e);
+				}
+				Thread.sleep(1000);
+			}
+		}
+		return globalTxId;
+	}
+
+	private void receiveInitialTransactions(long txId, int maxRetries) throws Exception {
+		// the very first tx, #1, is always local (InitRootTransaction) and never stored at Hazelcast
+		// so will request txs either starting from 2 or local lastTxId+1, whichever bigger
+		long startTx = Math.max(2, lastTxId + 1);
+		System.out.printf("requesting initial transactions [%s - %s] \n", startTx, txId);
+		
+		Set<Long> keys = new HashSet<>();
+		for (long l = startTx; l <= txId; l++)
+			keys.add(l);
+		
+		Map<Long, TransactionTimestamp> receivedTxs = globalTxMap.getAll(keys);
+		// returned Map is unmodifiable, so create another copy
+		receivedTxs = new HashMap<>(receivedTxs);
+		
+		int retryCount = 0;
+		
+		// looks like for large numbers of keys, Hazelcast dont return all values
+		// so we iterate with batches for remaining values
+		while (!receivedTxs.keySet().containsAll(keys) && retryCount < maxRetries) {
+			Set<Long> remainingKeys = new HashSet<>(keys);
+			remainingKeys.removeAll(receivedTxs.keySet());
+			System.out.printf("retrieved %s of %s initial transactions, requesting remaining %s: %s \n", 
+					receivedTxs.size(), keys.size(), remainingKeys.size(), remainingKeys);
+			
+			// Hazelcast eventually returns all keys, but not immediately, so wait a bit.. 
+			// NOT true indeed, sometimes some keys are missing 
+			Thread.sleep(500);
+			
+			Map<Long, TransactionTimestamp> newBatch = globalTxMap.getAll(remainingKeys);
+			System.out.printf("retrieved %s more initial transactions \n", newBatch.size());
+			
+			receivedTxs.putAll(newBatch);
+			retryCount++;
+		}
+		if (!receivedTxs.keySet().containsAll(keys)) {
+			System.out.printf("couldnt received all initial transactions after %s attempts, giving up \n", retryCount);
+			throw new IllegalStateException("couldnt received all initial transactions");
+		}
+		
+		System.out.printf("received all initial transactions [%s - %s], count: %s \n", startTx, txId, receivedTxs.size());
+		
+		if (USE_LOCAL_TX_MAP) {
+			localTxMap.putAll(receivedTxs);
+			System.out.printf("stored all initial transactions in local map [%s - %s], count: %s \n", startTx, txId, receivedTxs.size());
+		}
+		
+	}
+	
 	public long getOwnTransactionCount() {
 		return ownTxCount;
 	}
@@ -197,16 +267,21 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			TransactionTimestamp timestamp = new TransactionTimestamp(capsule, nextTxId, new Date());
 			TransactionGuide guide = new TransactionGuide(timestamp, Turn.first());
 
-			ICompletableFuture<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(nextTxId, timestamp);
-			
-			if (assertionsEnabled) {
-				assertionExecutor.execute(() -> {
-					try {
-						assert (oldValueFuture.get() == null) : String.format("txMap already contains a value for %s", nextTxId);
-					} catch (InterruptedException | ExecutionException e) {
-						e.printStackTrace();
-					}
-				});
+			if (SEND_TX_ASYNC) {
+				CompletionStage<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(nextTxId, timestamp);
+				
+				if (assertionsEnabled) {
+					assertionExecutor.execute(() -> {
+						try {
+							assert (oldValueFuture.toCompletableFuture().get() == null) : String.format("txMap already contains a value for %s", nextTxId);
+						} catch (InterruptedException | ExecutionException e) {
+							e.printStackTrace();
+						}
+					});
+				}
+			} else {
+				TransactionTimestamp oldValueFuture = globalTxMap.put(nextTxId, timestamp);
+				assert (oldValueFuture == null) : String.format("txMap already contains a value for %s", nextTxId);
 			}
 			
 			synchronized(lastTxIdLock) {
@@ -252,16 +327,21 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		TransactionTimestamp timestamp = new TransactionTimestamp(capsule, nextTxId, new Date());
 		TransactionGuide guide = new TransactionGuide(timestamp, Turn.first());
 
-		ICompletableFuture<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(nextTxId, timestamp);
-		
-		if (assertionsEnabled) {
-			assertionExecutor.execute(() -> {
-				try {
-					assert (oldValueFuture.get() == null) : String.format("txMap already contains a value for %s", nextTxId);
-				} catch (InterruptedException | ExecutionException e) {
-					e.printStackTrace();
-				}
-			});
+		if (SEND_TX_ASYNC) {
+			CompletionStage<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(nextTxId, timestamp);
+			
+			if (assertionsEnabled) {
+				assertionExecutor.execute(() -> {
+					try {
+						assert (oldValueFuture.toCompletableFuture().get() == null) : String.format("txMap already contains a value for %s", nextTxId);
+					} catch (InterruptedException | ExecutionException e) {
+						e.printStackTrace();
+					}
+				});
+			}
+		} else {
+			TransactionTimestamp oldValueFuture = globalTxMap.put(nextTxId, timestamp);
+			assert (oldValueFuture == null) : String.format("txMap already contains a value for %s", nextTxId);
 		}
 		
 		synchronized(lastTxIdLock) {
@@ -402,12 +482,12 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	private void commit(TransactionTimestamp transaction) throws Exception {
 			
 		
-		Context.getInstance().setInRemoteTransaction(true);
+		if (initialized) Context.getInstance().setInRemoteTransaction(true);
 		
 		if (Context.DEBUG) System.out.printf("commiting txId: %s, tx: %s \n", transaction.systemVersion(), transaction.capsule().deserialize(new JavaSerializer()));
 		if (Context.DEBUG) printPool("pool objects before commit");
 		
-		Context.getInstance().poolLock.lock();
+		if (initialized) Context.getInstance().poolLock.lock();
 		try {
 			nextTransactionField.setLong(publisher, transaction.systemVersion() + 1);
 			if (Context.DEBUG) System.out.printf("set nextTransactionField for %s to %s \n", transaction.systemVersion(), transaction.systemVersion() + 1);
@@ -437,8 +517,8 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			t.printStackTrace();
 			throw t;
 		} finally {
-			Context.getInstance().setInRemoteTransaction(false);
-			Context.getInstance().poolLock.unlock();
+			if (initialized) Context.getInstance().setInRemoteTransaction(false);
+			if (initialized) Context.getInstance().poolLock.unlock();
 		}
 	}
 	
@@ -489,7 +569,9 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			}
 			
 			try {
-				maybeCommitTransactions();
+				if (initialized) {
+					maybeCommitTransactions();
+				}
 			} catch (RuntimeException e) {
 				e.printStackTrace();
 				throw e;
@@ -498,6 +580,15 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 				throw new RuntimeException(e);
 			}
 		}
+	};
+	
+	private final MapPartitionLostListener mapPartitionLostListener = new MapPartitionLostListener() {
+
+		@Override
+		public void partitionLost(MapPartitionLostEvent event) {
+			System.out.printf("WARN: map partition lost: %s \n", event);
+		}
+		
 	};
 	
 	private final TransactionSubscriber transactionSubscriber = new TransactionSubscriber() {
@@ -520,19 +611,22 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			}
 			
 			if (Context.DEBUG) System.out.printf("putting transaction %s into map \n", transaction.systemVersion());
-			//TransactionTimestamp oldValue = globalTxMap.put(transaction.systemVersion(), transaction);
-			//assert (oldValue == null) : String.format("txMap already contains a value for %s", transaction.systemVersion());
 			
-			ICompletableFuture<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(transaction.systemVersion(), transaction);
-			
-			if (assertionsEnabled) {
-				assertionExecutor.execute(() -> {
-					try {
-						assert (oldValueFuture.get() == null) : String.format("txMap already contains a value for %s", transaction.systemVersion());
-					} catch (InterruptedException | ExecutionException e) {
-						e.printStackTrace();
-					}
-				});
+			if (SEND_TX_ASYNC) {
+				CompletionStage<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(transaction.systemVersion(), transaction);
+				
+				if (assertionsEnabled) {
+					assertionExecutor.execute(() -> {
+						try {
+							assert (oldValueFuture.toCompletableFuture().get() == null) : String.format("txMap already contains a value for %s", transaction.systemVersion());
+						} catch (InterruptedException | ExecutionException e) {
+							e.printStackTrace();
+						}
+					});
+				}
+			} else {
+				TransactionTimestamp oldValue = globalTxMap.put(transaction.systemVersion(), transaction);
+				assert (oldValue == null) : String.format("txMap already contains a value for %s", transaction.systemVersion());
 			}
 		}
 		
@@ -540,6 +634,14 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 
 	private final Thread commitCheckerThread = new Thread("commitCheckerThread") {
 		public void run() {
+			
+			// try committing once initially
+			try {
+				maybeCommitTransactions();
+			} catch (Throwable t) {
+				t.printStackTrace();
+			}
+			
 			while (true) {
 				try {
 					synchronized (lastTxIdLock) {

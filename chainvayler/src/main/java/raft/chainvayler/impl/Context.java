@@ -11,7 +11,8 @@ import org.prevayler.Prevayler;
 // TODO maybe made methods of this class protected and override in __Chainvayler? 
 public abstract class Context {
 
-	static final boolean DEBUG = false;
+	// this should actually be private final. temporarily public for easy debugging
+	public static boolean DEBUG = false;
 	
 	private static Context instance;
 	

@@ -32,9 +32,9 @@ public class RootHolder implements Serializable {
 		return pool.get(id) != null;
 	}
 
-	// TODO revert/fix
-	public final void onRecoveryCompleted() {
-//		pool.switchToWeakValues();
+	// TODO revert/fix to weak values
+	public final void onRecoveryCompleted(boolean switchToWeakValues) {
+		if (switchToWeakValues) pool.switchToWeakValues();
 	}
 
 	public final boolean isInitialized() {

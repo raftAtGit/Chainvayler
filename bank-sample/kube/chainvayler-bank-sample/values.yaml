@@ -35,6 +35,9 @@ image:
   tag: latest
   pullPolicy: Always
 
+chainvayler:
+  debug: false
+
 java:
   enableAssertions: false
   maxMemory: 1024m
@@ -43,6 +46,8 @@ java:
 hazelcast:
   logging:
     # set to none to disable Hazelcast logging
-    type: jdk    
+    type: jdk
+    # only applies to JDK logger
+    level: INFO
 
 

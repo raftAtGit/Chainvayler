@@ -4,7 +4,7 @@ import java.util.Date;
 
 import org.prevayler.TransactionWithQuery;
 
-// TODO remove
+// TODO remove? how?
 public class InitRootTransaction implements TransactionWithQuery<RootHolder, Void> {
 
 	private static final long serialVersionUID = 1L;

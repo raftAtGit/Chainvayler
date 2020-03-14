@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chainvayler-logging-config
+  labels:
+    name: chainvayler-logging-config
+data:
+  logging.properties: |
+    handlers = java.util.logging.ConsoleHandler
+    .level = INFO
+    java.util.logging.ConsoleHandler.level = {{ .Values.hazelcast.logging.level }}
+    java.util.logging.ConsoleHandler.formatter = java.util.logging.SimpleFormatter
+    com.hazelcast.level = {{ .Values.hazelcast.logging.level }}

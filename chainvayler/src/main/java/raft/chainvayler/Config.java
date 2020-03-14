@@ -12,10 +12,11 @@ public class Config {
 	public Config() {
 		hazelcastConfig.getCPSubsystemConfig().setCPMemberCount(3);
 		
-		// we know for sure that entries in global txMap cannot be overridden, so we are safe to read from backups
-		hazelcastConfig.getMapConfig("default").setReadBackupData(false);
-		hazelcastConfig.getMapConfig("default").setBackupCount(0);
-		hazelcastConfig.getMapConfig("default").setAsyncBackupCount(0);
+		hazelcastConfig.getMapConfig("default")
+			// we know for sure that entries in global txMap cannot be overridden, so we are safe to read from backups
+			.setReadBackupData(true)
+			.setBackupCount(1)
+			.setAsyncBackupCount(1);
 		
 		hazelcastConfig.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);
 		hazelcastConfig.getNetworkConfig().getJoin().getKubernetesConfig().setEnabled(true);
