@@ -150,6 +150,11 @@ public class Chainvayler<T> {
 		return rootHolder.getRoot();
 	}
 	
+	public static void shutdown() {
+		if (instance != null && instance.hazelcastPrevayler != null)
+			instance.hazelcastPrevayler.shutdown();
+	}
+	
 	public static <T> T create(Class<T> clazz) throws Exception {
 		return create(clazz, new Config());
 	}

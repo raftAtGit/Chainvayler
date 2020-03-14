@@ -104,6 +104,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	private final Object lastTxIdLock = new Object();
 	private final Object commitLock = new Object();
 	private boolean initialized = false;
+	private boolean stopped = false;
 	
 	private final int txIdReserveSize;
 	private final Queue<Long> reservedTxIds = new LinkedList<>();
@@ -164,8 +165,11 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	}
 	
 	public void start() {
-		initialized = true;
 		commitCheckerThread.start();
+	}
+	
+	public void shutdown() {
+		stopped = true;
 	}
 	
 	private long getGlobalTxId() {
@@ -320,6 +324,9 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	@Override
 	public void execute(Transaction<? super RootHolder> transaction) {
 		
+		if (stopped) 
+			throw new IllegalStateException("Chainvayler is shutting down, not accepting any more transactions");
+		
 		try {
 			final long nextTxId = getNextGlobalTxId();
 			localTxIds.add(nextTxId);
@@ -369,6 +376,9 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	@Override
 	public <R> R execute(TransactionWithQuery<? super RootHolder, R> transactionWithQuery) throws Exception {
 
+		if (stopped) 
+			throw new IllegalStateException("Chainvayler is shutting down, not accepting any more transactions");
+		
 		final long nextTxId = getNextGlobalTxId();
 		localTxIds.add(nextTxId);
 
@@ -529,7 +539,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 				
 				commit(transaction);
 				
-				assert (nextTxId == lastTxId);
+//				assert (nextTxId == lastTxId);
 				committedNew = true;
 			}
 			
@@ -714,6 +724,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			} catch (Throwable t) {
 				t.printStackTrace();
 			}
+			initialized = true;
 			
 			while (true) {
 				try {

@@ -27,8 +27,8 @@ public class Main {
 	
 	private final Options options;
 	private Peer.Impl peer;
-//	private volatile boolean stopWriters = false;
 	private volatile boolean stopReaders = false;
+	private volatile boolean stopped = false;
 	
     public Main(Options options) {
 		this.options = options;
@@ -59,10 +59,9 @@ public class Main {
 		// TODO remove
 		Context.DEBUG = options.debug;
 		
-		Bank bank = Chainvayler.create(Bank.class, config);
+		registerShutdownHook();
 		
-		// just allow things a bit cool down
-		// Thread.sleep(5000);
+		Bank bank = Chainvayler.create(Bank.class, config);
 		
 		startReaderThreads(bank);
 		startWriterThreads(bank);
@@ -192,14 +191,16 @@ public class Main {
 		}
 	}
 	
-//	private void registerShutdownHook() {
-//		Runtime.getRuntime().addShutdownHook(new Thread()  {
-//			@Override
-//			public void run() {
-//				stopWriters = true;
-//			}
-//		});
-//	}
+	private void registerShutdownHook() {
+		Runtime.getRuntime().addShutdownHook(new Thread()  {
+			@Override
+			public void run() {
+				System.out.println("Shutdown hook is running, shutting down Chainvayler");
+				stopped = true;
+				Chainvayler.shutdown();
+			}
+		});
+	}
 
 	
 	private void populateBank(Bank bank, Random random) throws Exception {
@@ -213,11 +214,13 @@ public class Main {
 		}
 		
 		for (int i = 0; i < 50 + random.nextInt(50); i++) {
+			if (stopped) return;
 			Customer customer = bank.createCustomer("initial:" + random.nextInt());
 			customer.addAccount(bank.createAccount());
 		}
 		
 		for (int action = 0; action < options.actions; action++) {
+			if (stopped) return;
 			int next = random.nextInt(BANK_WRITE_ACTIONS);
 			doSomethingRandomWithBank(bank, next, random);
 		}
