@@ -12,6 +12,7 @@
 * [Determinism](#determinism)
 * [Limitations](#limitations)
   * [Garbage collection](#garbage-collection)
+  * [Clean shutdown](#clean-shutdown)
 * [FAQ and more](#faq-and-more)
 
 ## [What is this?](#what-is-this)
@@ -169,8 +170,28 @@ Welcome to _Chainvayler_ world! You just witnessed a POJO graph is _automagicall
 
 Feel free to try different settings: more writers, some readers, some writer-readers or more write actions. See the [values.yaml](bank-sample/kube/chainvayler-bank-sample/values.yaml) file for all options.
 
-If you enable _persistence_ and _persistence.mountVolumes_ (mounting external disks), feel free to kill any pod any time. When restarted, they will continue with the exact same sate where they left.
+For example, lets create additional 2 readers:
+```
+helm install kube/chainvayler-bank-sample/ --name chainvayler-sample --set replication.readerCount=2 --set load.actions=5000
+```
+Increased the action count so we will have more time until they are completed. Kill any pod any time, when restarted, they will retrieve the initial state and catch the others.
 
+For example, from the logs after they are killed and restarted:
+```
+requesting initial transactions [2 - 23582]
+received all initial transactions [2 - 23582], count: 23581
+```
+
+If you enable persistence and mount external disks with the flags `--set persistence.enabled=true --set persistence.mountVolumes=true`, when pods are killed and restarted, logs will be something like:
+```
+requesting initial transactions [40154 - 69079]
+received all initial transactions [40154 - 69079], count: 28926
+```
+In this case, the first 40153 transactions are loaded from the disk, next 28926 are retrieved from the network.
+
+__Note:__ When replication is enabled, most of the time pods recover successfully after a kill/restart cycle. But still sometimes they cannot properly connect to Hazelcast cluster or some of the initial transactions get lost. Not sure if this is a misconfuguration by myself or Hazelcast is not bullet proof.
+
+__Important__: Don't kill writer pods with `-9` switch before they are completed. This will hang the whole system. See [clean shutdown](#clean-shutdown) for details.
 
 ### [Running the sample locally](#bank-sample-run-local)
 
@@ -192,5 +213,12 @@ When this _chained_ object is replicated to other JVMs, there won't be any local
 
 So, unfortunately, looks like, we need to keep a reference to all created _chained_ objects in replication mode and prevent them to be garbage collected. 
 
+### [Clean shutdown](#clean-shutdown)
+
+When _replication_ is enabled, clean shutdown is very important. In particular, if a writer reserves a transaction ID in the network and dies before sending the transaction to the network, the whole network will hang, they will wait indefinitely to receive that missing transaction. 
+
+The _Bank_ sample registers a shutdown hook to the JVM and shutdowns _Chainvayler_ when JVM shutdown is initiated. This works fine for demonstration purposes unless JVM is killed with `-9 (-SIGKILL)` switch or a power outage happens.
+
+But obviously this is not a bullet proof solution. A possible general solution is, if an awaited transaction is not received after some time, assume sending peer died and send the network a `NoOp` transaction with that ID, so the rest of the network can continue operating.
 
 ## [FAQ and more](#faq-and-more)
