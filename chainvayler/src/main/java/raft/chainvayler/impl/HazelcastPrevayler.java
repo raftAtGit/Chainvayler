@@ -267,22 +267,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			TransactionTimestamp timestamp = new TransactionTimestamp(capsule, nextTxId, new Date());
 			TransactionGuide guide = new TransactionGuide(timestamp, Turn.first());
 
-			if (SEND_TX_ASYNC) {
-				CompletionStage<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(nextTxId, timestamp);
-				
-				if (assertionsEnabled) {
-					assertionExecutor.execute(() -> {
-						try {
-							assert (oldValueFuture.toCompletableFuture().get() == null) : String.format("txMap already contains a value for %s", nextTxId);
-						} catch (InterruptedException | ExecutionException e) {
-							e.printStackTrace();
-						}
-					});
-				}
-			} else {
-				TransactionTimestamp oldValueFuture = globalTxMap.put(nextTxId, timestamp);
-				assert (oldValueFuture == null) : String.format("txMap already contains a value for %s", nextTxId);
-			}
+			storeGlobalTransaction(nextTxId, timestamp);
 			
 			synchronized(lastTxIdLock) {
 				while (!isProcessed(nextTxId - 1)) {
@@ -327,22 +312,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		TransactionTimestamp timestamp = new TransactionTimestamp(capsule, nextTxId, new Date());
 		TransactionGuide guide = new TransactionGuide(timestamp, Turn.first());
 
-		if (SEND_TX_ASYNC) {
-			CompletionStage<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(nextTxId, timestamp);
-			
-			if (assertionsEnabled) {
-				assertionExecutor.execute(() -> {
-					try {
-						assert (oldValueFuture.toCompletableFuture().get() == null) : String.format("txMap already contains a value for %s", nextTxId);
-					} catch (InterruptedException | ExecutionException e) {
-						e.printStackTrace();
-					}
-				});
-			}
-		} else {
-			TransactionTimestamp oldValueFuture = globalTxMap.put(nextTxId, timestamp);
-			assert (oldValueFuture == null) : String.format("txMap already contains a value for %s", nextTxId);
-		}
+		storeGlobalTransaction(nextTxId, timestamp);
 		
 		synchronized(lastTxIdLock) {
 			while (!isProcessed(nextTxId - 1)) {
@@ -431,6 +401,24 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		}
 	}
 	
+	private void storeGlobalTransaction(Long txId, TransactionTimestamp timestamp) {
+		if (SEND_TX_ASYNC) {
+			CompletionStage<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(txId, timestamp);
+			
+			if (assertionsEnabled) {
+				assertionExecutor.execute(() -> {
+					try {
+						assert (oldValueFuture.toCompletableFuture().get() == null) : String.format("txMap already contains a value for %s", txId);
+					} catch (InterruptedException | ExecutionException e) {
+						e.printStackTrace();
+					}
+				});
+			}
+		} else {
+			TransactionTimestamp oldValueFuture = globalTxMap.put(txId, timestamp);
+			assert (oldValueFuture == null) : String.format("txMap already contains a value for %s", txId);
+		}
+	}
 	
 	private void maybeCommitTransactions() throws Exception {
 		boolean committedNew = false;
@@ -611,23 +599,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			}
 			
 			if (Context.DEBUG) System.out.printf("putting transaction %s into map \n", transaction.systemVersion());
-			
-			if (SEND_TX_ASYNC) {
-				CompletionStage<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(transaction.systemVersion(), transaction);
-				
-				if (assertionsEnabled) {
-					assertionExecutor.execute(() -> {
-						try {
-							assert (oldValueFuture.toCompletableFuture().get() == null) : String.format("txMap already contains a value for %s", transaction.systemVersion());
-						} catch (InterruptedException | ExecutionException e) {
-							e.printStackTrace();
-						}
-					});
-				}
-			} else {
-				TransactionTimestamp oldValue = globalTxMap.put(transaction.systemVersion(), transaction);
-				assert (oldValue == null) : String.format("txMap already contains a value for %s", transaction.systemVersion());
-			}
+			storeGlobalTransaction(transaction.systemVersion(), transaction);
 		}
 		
 	};
