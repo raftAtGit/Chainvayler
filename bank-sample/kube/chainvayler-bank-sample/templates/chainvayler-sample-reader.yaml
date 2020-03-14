@@ -45,6 +45,7 @@ spec:
                     {{- if .Values.java.enableAssertions }}
                     -ea \
                     {{- end }}
+                    -Dhazelcast.shutdownhook.policy=GRACEFUL \
                     -Dhazelcast.logging.type={{- .Values.hazelcast.logging.type }} \
                     -Djava.util.logging.config.file=/chainvayler-bank-sample/logging.properties \
                     -cp $(cat /chainvayler-bank-sample/classpath) raft.chainvayler.samples.bank.Main \
@@ -58,7 +59,8 @@ spec:
                     --kubernetes true \
                     --kubernetesServiceName chainvayler-sample-hazelcast.{{- .Release.Namespace }}.svc.cluster.local \
                     --peerStatsRegistry chainvayler-peer-stats \
-                    --debug {{ .Values.chainvayler.debug }} " ]
+                    --hazelcastAsyncBackupCount {{ .Values.hazelcast.mapConfig.asyncBackupCount }} \
+                    --debug {{ .Values.chainvayler.debug }}" ]
 
         volumeMounts:
         - name: peer-disk

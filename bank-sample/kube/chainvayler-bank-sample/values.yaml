@@ -36,6 +36,7 @@ image:
   pullPolicy: Always
 
 chainvayler:
+  # enable debug output? really verbose
   debug: false
 
 java:
@@ -44,6 +45,9 @@ java:
   maxStatsMemory: 2048m
   
 hazelcast:
+  mapConfig:
+    # async backup count for Hazelcast IMap
+    asyncBackupCount: 2
   logging:
     # set to none to disable Hazelcast logging
     type: jdk

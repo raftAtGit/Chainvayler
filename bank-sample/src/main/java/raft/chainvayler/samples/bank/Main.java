@@ -42,6 +42,8 @@ public class Main {
 				.setReplicationEnabled(options.replication);
 		config.getReplicationConfig().setTxIdReserveSize(options.txIdReserveSize);
 		
+		config.getHazelcastConfig().getMapConfig("default").setAsyncBackupCount(options.hazelcastAsyncBackupCount);
+		
 		if (options.kubernetes) {
 			config.getHazelcastConfig().getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);
 			config.getHazelcastConfig().getNetworkConfig().getJoin().getKubernetesConfig().setEnabled(true)
@@ -500,6 +502,7 @@ public class Main {
 		public int writers = 5;
 		public int readers = 5;
 		public int actions = 100;
+		public int hazelcastAsyncBackupCount = 2;
 		public boolean stopReaders = true;
 		public String peerStatsRegistry;
 		public boolean debug = false;
@@ -515,6 +518,7 @@ public class Main {
 				   + "\n    writers: " + writers
 				   + "\n    readers: " + readers
 				   + "\n    actions: " + actions 
+				   + "\n    hazelcastAsyncBackupCount: " + hazelcastAsyncBackupCount 
 				   + "\n    stopReaders: " + stopReaders
 				   + "\n    peerStatsRegistry: " + peerStatsRegistry
 				   + "\n    debug: " + debug;
@@ -554,6 +558,9 @@ public class Main {
 		if (comLine.containsArg("--peerStatsRegistry"))
             options.peerStatsRegistry = comLine.getArg("--peerStatsRegistry");
 
+		if (comLine.containsArg("--hazelcastAsyncBackupCount"))
+            options.hazelcastAsyncBackupCount = Integer.parseInt(comLine.getArg("--hazelcastAsyncBackupCount"));
+		
 		if (comLine.containsArg("--debug"))
             options.debug  = Boolean.parseBoolean(comLine.getArg("--debug"));
 		
@@ -583,6 +590,7 @@ public class Main {
 	    		   "                                           note: regardless of actions, initially (50 + random(50))\n" + 
 	    		   "                                                 customers and accounts are created");
 	    ps.println("    --peerStatsRegistry <host|IP>        : if provided, peer is registered by using this RMI registry");
+	    ps.println("    --hazelcastAsyncBackupCount          : async backup count for Hazelcast IMap");
 	    ps.println("    --debug <true|false*>        		 : enable debug logging?");
 	}
 	

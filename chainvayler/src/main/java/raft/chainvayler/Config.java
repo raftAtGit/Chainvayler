@@ -15,8 +15,8 @@ public class Config {
 		hazelcastConfig.getMapConfig("default")
 			// we know for sure that entries in global txMap cannot be overridden, so we are safe to read from backups
 			.setReadBackupData(true)
-			.setBackupCount(1)
-			.setAsyncBackupCount(1);
+			.setBackupCount(0)
+			.setAsyncBackupCount(2);
 		
 		hazelcastConfig.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);
 		hazelcastConfig.getNetworkConfig().getJoin().getKubernetesConfig().setEnabled(true);

@@ -123,6 +123,9 @@ public class Chainvayler<T> {
 			
 			instance = this;
 			
+			if (hazelcastPrevayler != null)
+				hazelcastPrevayler.start();
+			
 			return (T) rootHolder.getRoot();
 		}
 	}

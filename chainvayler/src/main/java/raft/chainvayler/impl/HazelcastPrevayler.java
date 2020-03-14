@@ -42,7 +42,9 @@ import org.prevayler.implementation.publishing.TransactionPublisher;
 import org.prevayler.implementation.publishing.TransactionSubscriber;
 
 import com.hazelcast.config.Config;
+import com.hazelcast.core.EntryAdapter;
 import com.hazelcast.core.EntryEvent;
+import com.hazelcast.core.EntryListener;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.cp.IAtomicLong;
@@ -50,6 +52,7 @@ import com.hazelcast.map.IMap;
 import com.hazelcast.map.MapPartitionLostEvent;
 import com.hazelcast.map.listener.EntryAddedListener;
 import com.hazelcast.map.listener.MapPartitionLostListener;
+import com.hazelcast.replicatedmap.ReplicatedMap;
 import com.hazelcast.spi.exception.RetryableHazelcastException;
 
 
@@ -63,6 +66,11 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	private static final boolean PRINT_POOL = false; 
 	private static final boolean SAVE_POOL = false; 
+	
+	/** Use Hazelcast ReplicatedMap or IMap? 
+	 * using ReplicatedMap does not look like a good idea, will increase memory usage a lot, 
+	 * and startup time will be high for new coming or restarted members */
+	private static final boolean USE_REPLICATED_MAP = false;
 	
 	/** <p>if true, stores the transactions in a local map on Hazelcast's global map entryAdded 
 	 * and retrieves from there when needed.</p> 
@@ -87,7 +95,8 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	private final HazelcastInstance hazelcast;
 	
 	private final IAtomicLong globalTxId;
-	private final IMap<Long, TransactionTimestamp> globalTxMap;
+	private final IMap<Long, TransactionTimestamp> globalTxIMap;
+	private final ReplicatedMap<Long, TransactionTimestamp> globalTxRepliatedMap;
 	private final Map<Long, TransactionTimestamp> localTxMap = Collections.synchronizedMap(new HashMap<>());
 	private long lastTxId = 0;
 	private long ownTxCount = 0;
@@ -133,16 +142,28 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			assertionExecutor = Executors.newCachedThreadPool();
 		
 		this.globalTxId = getGlobalTxIdWithRetries(10);
-		this.globalTxMap = hazelcast.getMap("transactions");
 		
-		globalTxMap.addEntryListener(entryAddedListener, true);
-		globalTxMap.addPartitionLostListener(mapPartitionLostListener);
+		if (USE_REPLICATED_MAP) {
+			this.globalTxIMap = null;
+			this.globalTxRepliatedMap = hazelcast.getReplicatedMap("transactions");
+			
+			globalTxRepliatedMap.addEntryListener(replicatedMapEntryAddedListener);
+		} else {
+			this.globalTxIMap = hazelcast.getMap("transactions");
+			this.globalTxRepliatedMap = null;
+
+			globalTxIMap.addEntryListener(iMapEntryAddedListener, true);
+			globalTxIMap.addPartitionLostListener(mapPartitionLostListener);
+		}
+		
 		
 		final long txId = getGlobalTxId();
 		if (txId > 1) {
 			receiveInitialTransactions(txId, 10);
 		}
-		
+	}
+	
+	public void start() {
 		initialized = true;
 		commitCheckerThread.start();
 	}
@@ -186,8 +207,15 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		}
 		return globalTxId;
 	}
-
 	private void receiveInitialTransactions(long txId, int maxRetries) throws Exception {
+		if (USE_REPLICATED_MAP) {
+			receiveInitialTransactionsFromReplicatedMap(txId, maxRetries);
+		} else {
+			receiveInitialTransactionsFromIMap(txId, maxRetries);
+		}
+	}
+	
+	private void receiveInitialTransactionsFromReplicatedMap(long txId, int maxRetries) throws Exception {
 		// the very first tx, #1, is always local (InitRootTransaction) and never stored at Hazelcast
 		// so will request txs either starting from 2 or local lastTxId+1, whichever bigger
 		long startTx = Math.max(2, lastTxId + 1);
@@ -197,7 +225,43 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		for (long l = startTx; l <= txId; l++)
 			keys.add(l);
 		
-		Map<Long, TransactionTimestamp> receivedTxs = globalTxMap.getAll(keys);
+		Set<Long> keySet = new HashSet<>(globalTxRepliatedMap.keySet());
+		
+		int retryCount = 0;
+		
+		while (!keySet.containsAll(keys) && retryCount < maxRetries) {
+			Set<Long> remainingKeys = new HashSet<>(keySet);
+			remainingKeys.removeAll(keys);
+			
+			System.out.printf("retrieved %s of %s initial transactions, requesting remaining %s: %s \n", 
+					keySet.size(), keys.size(), remainingKeys.size(), remainingKeys);
+
+			// Hazelcast eventually returns all keys, but not immediately, so wait a bit.. 
+			Thread.sleep(500);
+			
+			keySet = new HashSet<>(globalTxRepliatedMap.keySet());
+			retryCount++;
+		}
+		
+		if (!keySet.containsAll(keys)) {
+			System.out.printf("couldnt received all initial transactions after %s attempts, giving up \n", retryCount);
+			throw new IllegalStateException("couldnt received all initial transactions");
+		}
+		
+		System.out.printf("received all initial transactions [%s - %s], count: %s \n", startTx, txId, keys.size());
+	}
+	
+	private void receiveInitialTransactionsFromIMap(long txId, int maxRetries) throws Exception {
+		// the very first tx, #1, is always local (InitRootTransaction) and never stored at Hazelcast
+		// so will request txs either starting from 2 or local lastTxId+1, whichever bigger
+		long startTx = Math.max(2, lastTxId + 1);
+		System.out.printf("requesting initial transactions [%s - %s] \n", startTx, txId);
+		
+		Set<Long> keys = new HashSet<>();
+		for (long l = startTx; l <= txId; l++)
+			keys.add(l);
+		
+		Map<Long, TransactionTimestamp> receivedTxs = globalTxIMap.getAll(keys);
 		// returned Map is unmodifiable, so create another copy
 		receivedTxs = new HashMap<>(receivedTxs);
 		
@@ -215,7 +279,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			// NOT true indeed, sometimes some keys are missing 
 			Thread.sleep(500);
 			
-			Map<Long, TransactionTimestamp> newBatch = globalTxMap.getAll(remainingKeys);
+			Map<Long, TransactionTimestamp> newBatch = globalTxIMap.getAll(remainingKeys);
 			System.out.printf("retrieved %s more initial transactions \n", newBatch.size());
 			
 			receivedTxs.putAll(newBatch);
@@ -391,32 +455,44 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	}
 
 	private TransactionTimestamp getGlobalTransaction(long txId) {
-		if (USE_LOCAL_TX_MAP) {
-			return localTxMap.remove(txId);
-		} else {
+		if (USE_REPLICATED_MAP) {
 			long startTime = System.nanoTime();
-			TransactionTimestamp transaction = globalTxMap.get(txId);
+			TransactionTimestamp transaction = globalTxRepliatedMap.get(txId);
 			if (Context.DEBUG) System.out.printf("got transaction: %s in %s nanos, null: %s \n", txId, (System.nanoTime() - startTime), (transaction == null));
 			return transaction;
+		} else {
+			if (USE_LOCAL_TX_MAP) {
+				return localTxMap.remove(txId);
+			} else {
+				long startTime = System.nanoTime();
+				TransactionTimestamp transaction = globalTxIMap.get(txId);
+				if (Context.DEBUG) System.out.printf("got transaction: %s in %s nanos, null: %s \n", txId, (System.nanoTime() - startTime), (transaction == null));
+				return transaction;
+			}
 		}
 	}
 	
 	private void storeGlobalTransaction(Long txId, TransactionTimestamp timestamp) {
-		if (SEND_TX_ASYNC) {
-			CompletionStage<TransactionTimestamp> oldValueFuture = globalTxMap.putAsync(txId, timestamp);
-			
-			if (assertionsEnabled) {
-				assertionExecutor.execute(() -> {
-					try {
-						assert (oldValueFuture.toCompletableFuture().get() == null) : String.format("txMap already contains a value for %s", txId);
-					} catch (InterruptedException | ExecutionException e) {
-						e.printStackTrace();
-					}
-				});
-			}
-		} else {
-			TransactionTimestamp oldValueFuture = globalTxMap.put(txId, timestamp);
+		if (USE_REPLICATED_MAP) {
+			TransactionTimestamp oldValueFuture = globalTxRepliatedMap.put(txId, timestamp);
 			assert (oldValueFuture == null) : String.format("txMap already contains a value for %s", txId);
+		} else {
+			if (SEND_TX_ASYNC) {
+				CompletionStage<TransactionTimestamp> oldValueFuture = globalTxIMap.putAsync(txId, timestamp);
+				
+				if (assertionsEnabled) {
+					assertionExecutor.execute(() -> {
+						try {
+							assert (oldValueFuture.toCompletableFuture().get() == null) : String.format("txMap already contains a value for %s", txId);
+						} catch (InterruptedException | ExecutionException e) {
+							e.printStackTrace();
+						}
+					});
+				}
+			} else {
+				TransactionTimestamp oldValueFuture = globalTxIMap.put(txId, timestamp);
+				assert (oldValueFuture == null) : String.format("txMap already contains a value for %s", txId);
+			}
 		}
 	}
 	
@@ -470,12 +546,12 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	private void commit(TransactionTimestamp transaction) throws Exception {
 			
 		
-		if (initialized) Context.getInstance().setInRemoteTransaction(true);
+		Context.getInstance().setInRemoteTransaction(true);
 		
 		if (Context.DEBUG) System.out.printf("commiting txId: %s, tx: %s \n", transaction.systemVersion(), transaction.capsule().deserialize(new JavaSerializer()));
 		if (Context.DEBUG) printPool("pool objects before commit");
 		
-		if (initialized) Context.getInstance().poolLock.lock();
+		Context.getInstance().poolLock.lock();
 		try {
 			nextTransactionField.setLong(publisher, transaction.systemVersion() + 1);
 			if (Context.DEBUG) System.out.printf("set nextTransactionField for %s to %s \n", transaction.systemVersion(), transaction.systemVersion() + 1);
@@ -505,8 +581,8 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			t.printStackTrace();
 			throw t;
 		} finally {
-			if (initialized) Context.getInstance().setInRemoteTransaction(false);
-			if (initialized) Context.getInstance().poolLock.unlock();
+			Context.getInstance().setInRemoteTransaction(false);
+			Context.getInstance().poolLock.unlock();
 		}
 	}
 	
@@ -538,8 +614,33 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			e.printStackTrace();
 		}
 	}
+
+	private final EntryListener<Long, TransactionTimestamp> replicatedMapEntryAddedListener = new EntryAdapter<Long, TransactionTimestamp>() {
+
+		@Override
+		public void entryAdded(EntryEvent<Long, TransactionTimestamp> event) {
+			if (Context.DEBUG) System.out.printf("map entry added, local: %s, key: %s, thread: %s \n", event.getMember().localMember(), event.getKey(), Thread.currentThread());
+			
+			if (event.getMember().localMember() || event.getKey().equals(Long.valueOf(1))) {
+				if (Context.DEBUG) System.out.printf("skipping map entry %s \n", event.getKey());
+				return;
+			}
+			
+			try {
+				if (initialized) {
+					maybeCommitTransactions();
+				}
+			} catch (RuntimeException e) {
+				e.printStackTrace();
+				throw e;
+			} catch (Exception e) {
+				e.printStackTrace();
+				throw new RuntimeException(e);
+			}
+		}
+	};
 	
-	private final EntryAddedListener<Long, TransactionTimestamp> entryAddedListener = new EntryAddedListener<Long, TransactionTimestamp>() {
+	private final EntryAddedListener<Long, TransactionTimestamp> iMapEntryAddedListener = new EntryAddedListener<Long, TransactionTimestamp>() {
 		@Override
 		public void entryAdded(EntryEvent<Long, TransactionTimestamp> event) {
 			if (Context.DEBUG) System.out.printf("map entry added, local: %s, key: %s, thread: %s \n", event.getMember().localMember(), event.getKey(), Thread.currentThread());
