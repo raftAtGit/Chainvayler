@@ -1,4 +1,5 @@
-FROM raft/chainvayler:0.1 AS builder
+ARG chainvayler_tag=latest
+FROM raft/chainvayler:${chainvayler_tag} AS builder
  
 COPY . /chainvayler-bank-sample
 

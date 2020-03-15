@@ -1,0 +1,60 @@
+# Docker
+# Build a Docker image 
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- master
+- feature/*
+
+resources:
+- repo: self
+
+variables:
+  tag: '0.$(Build.BuildId)'
+
+stages:
+- stage: Build
+  displayName: Build image
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: Docker@2
+      displayName: Docker build Chainvayler image
+      inputs:
+        command: build
+        repository: raft/chainvayler
+        dockerfile: '$(Build.SourcesDirectory)/chainvayler/Dockerfile'
+        tags: |
+          $(tag)
+          latest
+    - task: Docker@2
+      displayName: Docker push Chainvayler image
+      inputs:
+        command: push
+        containerRegistry: docker_hub_connection_raft
+        repository: raft/chainvayler
+        tags: |
+          $(tag)
+          latest
+    - task: Docker@2
+      displayName: Docker build Bank sample image
+      inputs:
+        command: build
+        repository: raft/chainvayler-bank-sample
+        dockerfile: '$(Build.SourcesDirectory)/bank-sample/Dockerfile'
+        arguments: --build-arg chainvayler_tag=$(tag)
+        tags: |
+          $(tag)
+          latest
+    - task: Docker@2
+      displayName: Docker push Bank sample image
+      inputs:
+        command: push
+        containerRegistry: docker_hub_connection_raft
+        repository: raft/chainvayler-bank-sample
+        tags: |
+          $(tag)
+          latest                    
