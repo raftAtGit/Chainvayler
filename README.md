@@ -62,16 +62,9 @@ Library library = Chainvayler.create(Library.class, config);
 Now, add as many books as you want to your library, they will be _automagically_ persisted and replicated to other JVMs. 
 Kill your program any time, when you restart it, the previously added books will be in your library.
 
-Note, the call to _Chainvayler.create(..)_ is only required for the _root_ of object graph. All other objects are created in regular ways, 
-either with the _new_ oprerator or via factories, builders whatever. As it is, _Chainvayler_ is quite flexible, other objects may be other 
-instances of _root_ class, subclasses/superclasses of it, or instances of a completely different class hierarchy.
+Note, the call to _Chainvayler.create(..)_ is only required for the _root_ of object graph. All other objects are created in regular ways, either with the _new_ oprerator or via factories, builders whatever. As it is, _Chainvayler_ is quite flexible, other objects may be other instances of _root_ class, subclasses/superclasses of it, or instances of a completely different class hierarchy.
 
-The only requirement to be _chained_ (persisted/replicated) is to be reachable directly or indirectly from the _root_. 
-For sure, there is no point in persisting/replicating an object that should soon be garbage collected and will not be accesible 
-in the next JVM session. 
-
-BTW, above is not a _hard_ requirement. Even if your _chained_ object is not reachable from the _root_, it will be persisted/replicated 
-but will be garbage collected later on if there are no other references to it. Only And yes, this also means garbage collection works as expected with _Chainvayler_. I had said _almost transparent_, right? ;)
+`@Chained` annotation marks the classes which will be managed by _Chainvayler_ and `@Modification` annotation marks the methods in _chained_ classes which modifies the data (class variables).
 
 ## [Bank sample](#bank-sample)
 
