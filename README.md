@@ -1,5 +1,5 @@
 # Chainvayler
-## ~Transparent Replication and Persistence for POJO's (Plain Old Java Objects)
+## ~Transparent Replication and Persistence for POJOs (Plain Old Java Objects)
 
 * [What is this?](#what-is-this)
 * [Introduction](#introduction)
@@ -8,6 +8,7 @@
   * [Running the sample in Kubernetes](#running-the-sample-in-kubernetes)
   * [Running the sample locally](#running-the-sample-locally)
 * [How it works?](#how-it-works)
+* [Consistency](#consistency)
 * [Performance](#performance)
 * [Determinism](#determinism)
 * [Limitations](#limitations)
@@ -77,13 +78,14 @@ Below is the class diagram of the _Bank_ sample:
 
 Nothing much fancy here. Apparently this is a toy diagram for a real banking application, but hopefully good enough to demonstrate _Chainvayler_'s capabilities.
 
-[_Bank_](bank-sample/src/main/java/raft/chainvayler/samples/bank/Bank.java) class is the _root_ class of this object graph. It's used to get a _chained_ instance of the object graph via _Chainvayler_. Every object reachable directly or indirectly from the root _Bank_ object will be _chained_ (persisted/replicated). Notice _Bank_ class has super and sub classes and even has a reference to another _Bank_ object, doesn't matter if it is a subclass or superclass or a _Bank_ class itself.
+[_Bank_](bank-sample/src/main/java/raft/chainvayler/samples/bank/Bank.java) class is the _root_ class of this object graph. It's used to get a _chained_ instance of the object graph via _Chainvayler_. Every object reachable directly or indirectly from the root _Bank_ object will be _chained_ (persisted/replicated). Notice _Bank_ class has super and sub classes and even has a reference to another _Bank_ object.
 
-For the sake of brevity, I've skipped the class methods in the diagram but included a few to demonstrate _Chainvayler_'s capabilities:
+For the sake of brevity, I've skipped the class methods in the diagram but included a few to demonstrate _Chainvayler_'s capabilities regarding some edge cases:
   * _Person_ and _RichPerson_ constructors throw an exception if _name_ has a special value
   * _SecretCustomer_ throws an exception whenever _getName_ is called
   * _SecretCustomer_ resides in a different package, I will tell in a bit what it demonstrates
   
+__Note__: I tried to cover all the possible edge cases. If you notice a case which is not covered, please create an issue.
 
 ### [Running the sample in Kubernetes](#running-the-sample-in-kubernetes)
 
@@ -94,7 +96,7 @@ In `Chainvayler/bank-sample` folder, run the following command:
 helm install kube/chainvayler-bank-sample/ --name chainvayler-sample 
 ```
 
-This will by default create 3 writer pods and the watcher application `peer-stats` to follow the process. Any writer or reader pods will register themselves to `peer-stats` pod via RMI and you can follow the process via `peer-stats` pod:
+This will by default create 3 writer pods and the watcher application `peer-stats` to follow the process. Any writer or reader pods will register themselves to `peer-stats` pod via RMI and you can follow the process via `peer-stats` pod's logs:
 
 ```
 kubectl logs chainvayler-peer-stats-<ID> --follow
@@ -190,9 +192,149 @@ __Important__: Don't kill writer pods with `-9` switch before they are completed
 
 ## [How it works?](#how-it-works)
 
+### Prevayler
+
+To explain how _Chainvayler_ works, I need to first introduce [Prevayler](http://prevayler.org/). It is a brilliant library to persist real POJOs. In short it says:
+
+> Encapsulate all changes to your data into _Transaction_ classes and pass over me. I will write those transactions to disk and then execute on your data. When the program is restarted, I will execute those transactions in the same order on your data. Provided all such changes are deterministic, we will end up with the exact same state just before the program terminated last time.
+
+This is simply a brilliant idea to persist POJO’s. Actually this is the exact same sequence databases store and re-execute transaction logs. 
+
+### Postvayler
+
+However, the thing is _Prevayler_ is a bit too verbose. You need to write _Transaction_ classes for each operation that modifies your data. And it’s also a bit old fashioned considering today’s wonderful _@Annotated_ Java world.
+
+Here comes into scene [Postvayler](https://github.com/raftAtGit/Postvayler). It's the predecessor of _Chainvayler_, which was also a PoC project by myself for transperent POJO persistence. 
+
+Postvayler injects bytecode into (instruments) __javac__ compiled `@Persistent` classes such that every `@Persist` method in a `@Persistent` class is modified to execute that method via `Prevayler`.
+
+For example, the `addBook(Book)` method in the introduction sample becomes something like (omitting some details for readability):
+```
+void addBook(Book book) {
+  if (! there is Postvayler context) {
+     // no persistence, just proceed to original method
+     __postvayler_addBook(book);
+     return;
+  }
+  if (weAreInATransaction) {
+     // we are already encapsulated in a transaction, just proceed to original method
+     __postvayler_addBook(book);
+     return;
+  }
+  weAreInATransaction = true;
+  try {
+    prevayler.execute(new aTransactionDescribingThisMethodCall());
+  } finally {
+    weAreInATransaction = false;
+  }
+}
+
+// original addBook method is renamed to this
+private void __postvayler_addBook(Book book) {
+  // the contents of the original addBook method
+}
+```
+
+As can been seen, if there is no _Postvayler_ context around, the object bahaves like the original POJO with an ignorable overhead.
+
+Constructors of _@Persistent_ classes are also instrumented to keep track of of them. They are pooled weekly so GC works as expected
+
+### Chainvayler
+
+_Chainvayler_ takes the idea of _Postvayler_ one step forward and replicates _transactions_ among JVMs and executes them with the exact same order. So we end up with transparently replicated and persisted POJOs. 
+
+Before a transaction is committed locally, a global transaction ID is retrieved via Hazelcast's 
+[IAtomicLong](https://docs.hazelcast.org/docs/latest/javadoc/com/hazelcast/cp/IAtomicLong.html) data structure, which is basically a distributed version of Java's [AtomicLong](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/atomic/AtomicLong.html). Local JVM waits until all transactions up to retrieved transaction ID is committed and then commits its own transaction. 
+
+Hazelcast's _IAtomicLong_ uses _Raft_ consensus algorithm behind the scenes and is [CP](https://hazelcast.com/blog/hazelcast-imdg-3-12-introduces-cp-subsystem/) (consistent and partition tolerant) in regard to [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) and so as _Chainvayler_. 
+
+_Chainvayler_ also uses Hazelcast's [IMap](https://docs.hazelcast.org/docs/latest/javadoc/com/hazelcast/map/IMap.html) data structure to replicate transactions among JVM's. This can be replaced with some other mechanism, for example with [Redis pub/sub](https://redis.io/topics/pubsub), should be benchmarked to see which one performs better.
+
+__Note__, even if _persistence_ is disabled, still _Prevayler_ transactions are used behind the scenes. Only difference is, _Prevayler_ is configured not to save transactions to disk.
+
+### Constructors
+
+Possibly, instrumentation of constructors are the most complicated part of _Chainvayler_ and also _Postvayler_. So best to mention a bit.
+
+First, as mentioned before, except the _root_ object of the _chained_ object graph, creating instances of _chained_ classes are done in regular ways, either with the _new_ oprerator, or via factories, builders whatever.
+
+For example, here is a couple of code fragments from the [_Bank_](https://github.com/raftAtGit/Chainvayler/blob/master/bank-sample/src/main/java/raft/chainvayler/samples/bank/Main.java) sample to create objects:
+```
+Bank other = new Bank();
+```
+```
+Customer customer = new Customer(<name>);
+```
+```
+Customer customer = bank.createCustomer(<name>);
+```
+They look quite POJO way, right?
+
+Actually many things are happening behind the scenes due to constructor instrumentation:
+* First, if there is no _Chainvayler_ context around, they act like a plain POJO. They do nothing special
+* Otherwise, the created object gets a unique long id, which is guaranteed to be the same among all JVMs and the object is put to the local object pool with that id
+* If necessary, a [ConstructorTransaction](https://github.com/raftAtGit/Chainvayler/blob/master/chainvayler/src/main/java/raft/chainvayler/impl/ConstructorTransaction.java) is created and committed with the arguments passed to constructor.
+A _ConstructorTransaction_ is necessary if:
+  * We are not already in a transaction (inside a `@Modification` method call or in another _ConstructorTransaction_)
+* If this is the local JVM, the JVM which created the object for the first time, it just gets back the reference of the object. All the  rest works as plain POJO world. 
+* Otherwise, if this is due to a remote transaction (coming from another JVM) or a recovery transaction (JVM stopped/crashed and replaying transactions from disk)
+  * Object is created due to _ConstructorTransaction_ using the exact same constructor arguments and gets the exact same id
+  * Object is put to local object pool with that id
+* After this point, local and remote JVMs works the same. Transactions representing `@Modification` method calls internally use _target_ object ids, so as each _chained_ object gets the same id across all JVM sessions, `@Modification` method calls execute on the very same object. 
+
+Constructor instrumentation also does some things which is not possible via plain Java code. In particular it:
+* Injects some bytecode which is executed before calling `super class'` constructor
+* Wraps `super class'` constructor call in a `try/catch/finally` clause.
+
+These are required to effectively handle exceptions thrown from constructors (edge cases) and initiate a _ConstructorTransaction_ in the correct point.
+
+## [Consistency](#consistency)
+
+Each _Chainvayler_ instance is `strongly consistent` locally. That is, once the invocation of a `@Modification` method completed, all reads in the same JVM session reflect the modification. 
+
+The overall system is `eventually consistent` for `reads`. That is, once the invocation of a `@Modification` method completed in one JVM, reads on other JVMs may not reflect the modification. 
+
+However, the overall system is `strongly consistent` for `writes`. That is, once the invocation of a `@Modification` method completed in one JVM, writes on other JVMs reflect the modification, `@Modification` methods will wait until all other writes from other JVMs are committed locally. So they can be sure they are modifying latest version of the data.
+
+In other words, provided all changes are deterministic, any `@Modification` method invocation on any JVM is guaranteed to be executed on the exact same data.
+
+
 ## [Performance](#performance)
 
 ## [Determinism](#determinism)
+
+As mentioned, all methods which modify the data in the _chained_ classes should be [deterministic](http://en.wikipedia.org/wiki/Deterministic_system). That is, given the same inputs, they should modify the data in the exact same way.
+
+The term `deterministic` has interesting implications in `Java`. For example, iteration order of `HashSet` and `HashMap` is not deterministic. They depend on the hash values which may not be the same in different JVM sessions. So, if iteration order is siginificant, for example finding the first object in a `HashSet` which satisfies certain conditions and operate on that, instead `LinkedHashSet` and `LinkedHashMap` should be used which provide predictable iteration order.
+
+In contrast, random operations are deterministic as long as you use the same seed.
+
+Another source of indeterminism is depending on the data provided by external actors, for example sensor data or stock market data. For these kind of situations, relevant `@Modification` methods should accept the data as method arguments. For example, below sample is completely safe:
+
+```
+@Chained
+class SensorRecords {
+  List<Record> records = new ArrayList<>();
+  
+  void record() {
+    Record record = readRecordFromSomeSensor();
+    record(record);
+  }
+  
+  @Modification
+  void record(Record record) {
+    records.add(record);
+  }
+}
+```
+
+__Note__, _clock_ is also an external actor to the system. Since it's so commonly used, _Chainvayler_ provides a 
+[Clock](https://github.com/raftAtGit/Chainvayler/blob/master/chainvayler/src/main/java/raft/chainvayler/Clock.java) 
+facility which can safely be used in `@Modification` methods instead of `System.currentTimeMillis()` or `new Date()`. 
+`Clock` pauses during the course of transactions and always has the same value for the same transaction regardless of which 
+JVM session it's running on.
+
+_Audits_ in the [Bank](https://github.com/raftAtGit/Chainvayler/blob/master/bank-sample/src/main/java/raft/chainvayler/samples/bank/Bank.java) sample demonstrates usage of clock facility.
 
 ## [Limitations](#limitations)
 
