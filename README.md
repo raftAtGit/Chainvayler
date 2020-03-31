@@ -150,13 +150,13 @@ this pair looks identical
 average tx/second: 5251.96, own tx/second: 1790.21
 ```
 
-So, what happened (with default values) exactly is:
+So, what happened (with the default values) exactly is:
 * We had launched 3 instances of _Bank_ sample where _replication_ is enabled and _persistence_ is disabled
 * They all registered themselves to `peer-stats` application to provide some metrics
 * They started to make random _write_ operations over their copy of the _Bank_ with 5 threads
 * `peer-stats` application collected and printed their metrics every 5 seconds
 * After all writers are finished:
-  * `peer-stats` got final details of each one's _Bank_ object and also _Chainvayler_'s implemenation details, like transaction count and internal object pool
+  * `peer-stats` got the final copy of each one's _Bank_ object and also _Chainvayler_'s implemenation details, like transaction count and internal object pool
   * Compared each one of them against any other them
   * Checked if they are __completely identical__
 * Printed the final statistics
@@ -169,7 +169,7 @@ For example, lets create additional 2 readers:
 ```
 helm install kube/chainvayler-bank-sample/ --name chainvayler-sample --set replication.readerCount=2 --set load.actions=5000
 ```
-Increased the action count so we will have more time until they are completed. Kill any pod any time, when restarted, they will retrieve the initial state and catch the others.
+Increased the action count, so we will have more time until they are completed. Kill any pod any time, when restarted, they will retrieve the initial state and catch the others.
 
 For example, from the logs after they are killed and restarted:
 ```
@@ -186,7 +186,7 @@ In this case, the first 40153 transactions are loaded from the disk, next 28926 
 
 __Note:__ When replication is enabled, most of the time pods recover successfully after a kill/restart cycle. But still sometimes they cannot properly connect to Hazelcast cluster or some of the initial transactions get lost. Not sure if this is a misconfuguration by myself or Hazelcast is not bullet proof.
 
-__Important__: Don't kill writer pods with `-9` switch before they are completed. This will hang the whole system. See [clean shutdown](#clean-shutdown) for details.
+__Important__: Do not kill writer pods with `-9` switch before they are completed. This will hang the whole system. See [clean shutdown](#clean-shutdown) for details.
 
 ### [Running the sample locally](#bank-sample-run-local)
 
@@ -198,7 +198,7 @@ To explain how _Chainvayler_ works, I need to first introduce [Prevayler](http:/
 
 > Encapsulate all changes to your data into _Transaction_ classes and pass over me. I will write those transactions to disk and then execute on your data. When the program is restarted, I will execute those transactions in the same order on your data. Provided all such changes are deterministic, we will end up with the exact same state just before the program terminated last time.
 
-This is simply a brilliant idea to persist POJO’s. Actually this is the exact same sequence databases store and re-execute transaction logs. 
+This is simply a brilliant idea to persist POJOs. Actually, this is the exact same sequence databases store and re-execute transaction logs. 
 
 ### Postvayler
 
@@ -248,7 +248,11 @@ Before a transaction is committed locally, a global transaction ID is retrieved 
 
 Hazelcast's _IAtomicLong_ uses _Raft_ consensus algorithm behind the scenes and is [CP](https://hazelcast.com/blog/hazelcast-imdg-3-12-introduces-cp-subsystem/) (consistent and partition tolerant) in regard to [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) and so as _Chainvayler_. 
 
-_Chainvayler_ also uses Hazelcast's [IMap](https://docs.hazelcast.org/docs/latest/javadoc/com/hazelcast/map/IMap.html) data structure to replicate transactions among JVM's. This can be replaced with some other mechanism, for example with [Redis pub/sub](https://redis.io/topics/pubsub), should be benchmarked to see which one performs better.
+_Chainvayler_ uses Hazelcast's [IMap](https://docs.hazelcast.org/docs/latest/javadoc/com/hazelcast/map/IMap.html) data structure to replicate transactions among JVM's. Possibly, this can be replaced with some other mechanism, for example with [Redis pub/sub](https://redis.io/topics/pubsub), should be benchmarked to see which one performs better.
+
+_Chainvayler_ also makes use of some ugly hacks to integrate with _Prevayler_. In particular, it uses _reflection_ to access _Prevayler_ [internals](https://github.com/raftAtGit/Chainvayler/blob/master/chainvayler/src/main/java/raft/chainvayler/impl/HazelcastPrevayler.java)
+as _Prevayler_ never meant to be extened this way. Obviously this is not optimal but please just remember this is just a PoC project ;) Possibly the way to go here is, enhancing _Prevayler_ 
+code base to allow this kind of extension.
 
 __Note__, even if _persistence_ is disabled, still _Prevayler_ transactions are used behind the scenes. Only difference is, _Prevayler_ is configured not to save transactions to disk.
 
@@ -280,7 +284,7 @@ A _ConstructorTransaction_ is necessary if:
 * Otherwise, if this is due to a remote transaction (coming from another JVM) or a recovery transaction (JVM stopped/crashed and replaying transactions from disk)
   * Object is created due to _ConstructorTransaction_ using the exact same constructor arguments and gets the exact same id
   * Object is put to local object pool with that id
-* After this point, local and remote JVMs works the same. Transactions representing `@Modification` method calls internally use _target_ object ids, so as each _chained_ object gets the same id across all JVM sessions, `@Modification` method calls execute on the very same object. 
+* After this point, local and remote JVMs works the same. Transactions representing `@Modification` method calls internally use _target_ object ids. So, as each _chained_ object gets the same id across all JVM sessions, `@Modification` method calls execute on the very same object. 
 
 Constructor instrumentation also does some things which is not possible via plain Java code. In particular it:
 * Injects some bytecode which is executed before calling `super class'` constructor
