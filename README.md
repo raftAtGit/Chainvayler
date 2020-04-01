@@ -8,6 +8,7 @@
   * [Running the sample in Kubernetes](#running-the-sample-in-kubernetes)
   * [Running the sample locally](#running-the-sample-locally)
 * [How it works?](#how-it-works)
+* [Annotations](#annotations)
 * [Consistency](#consistency)
 * [Performance](#performance)
 * [Determinism](#determinism)
@@ -86,6 +87,8 @@ For the sake of brevity, I've skipped the class methods in the diagram but inclu
   * _SecretCustomer_ resides in a different package, I will tell in a bit what it demonstrates
   
 __Note__: I tried to cover all the possible edge cases. If you notice a case which is not covered, please create an issue.
+
+There is also an [emulated Bank sample](https://github.com/raftAtGit/Chainvayler/tree/master/bank-sample/src/main/java/raft/chainvayler/samples/_bank) where the _Chainvayler_ injected bytecode is manually added to demonstrate what is going on.
 
 ### [Running the sample in Kubernetes](#running-the-sample-in-kubernetes)
 
@@ -246,12 +249,12 @@ _Chainvayler_ takes the idea of _Postvayler_ one step forward and replicates _tr
 Before a transaction is committed locally, a global transaction ID is retrieved via Hazelcast's 
 [IAtomicLong](https://docs.hazelcast.org/docs/latest/javadoc/com/hazelcast/cp/IAtomicLong.html) data structure, which is basically a distributed version of Java's [AtomicLong](https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/atomic/AtomicLong.html). Local JVM waits until all transactions up to retrieved transaction ID is committed and then commits its own transaction. 
 
-Hazelcast's _IAtomicLong_ uses _Raft_ consensus algorithm behind the scenes and is [CP](https://hazelcast.com/blog/hazelcast-imdg-3-12-introduces-cp-subsystem/) (consistent and partition tolerant) in regard to [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) and so as _Chainvayler_. 
+Hazelcast's _IAtomicLong_ uses _Raft_ consensus algorithm behind the scenes and is [CP](https://hazelcast.com/blog/hazelcast-imdg-3-12-introduces-cp-subsystem/) (consistent and partition tolerant) in regard to [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) and so is _Chainvayler_. 
 
 _Chainvayler_ uses Hazelcast's [IMap](https://docs.hazelcast.org/docs/latest/javadoc/com/hazelcast/map/IMap.html) data structure to replicate transactions among JVM's. Possibly, this can be replaced with some other mechanism, for example with [Redis pub/sub](https://redis.io/topics/pubsub), should be benchmarked to see which one performs better.
 
 _Chainvayler_ also makes use of some ugly hacks to integrate with _Prevayler_. In particular, it uses _reflection_ to access _Prevayler_ [internals](https://github.com/raftAtGit/Chainvayler/blob/master/chainvayler/src/main/java/raft/chainvayler/impl/HazelcastPrevayler.java)
-as _Prevayler_ never meant to be extened this way. Obviously this is not optimal but please just remember this is just a PoC project ;) Possibly the way to go here is, enhancing _Prevayler_ 
+as _Prevayler_ was never meant to be extened this way. Obviously, this is not optimal, but please just remember this is just a PoC project ;) Possibly the way to go here is, enhancing _Prevayler_ 
 code base to allow this kind of extension.
 
 __Note__, even if _persistence_ is disabled, still _Prevayler_ transactions are used behind the scenes. Only difference is, _Prevayler_ is configured not to save transactions to disk.
@@ -278,19 +281,46 @@ Actually many things are happening behind the scenes due to constructor instrume
 * First, if there is no _Chainvayler_ context around, they act like a plain POJO. They do nothing special
 * Otherwise, the created object gets a unique long id, which is guaranteed to be the same among all JVMs and the object is put to the local object pool with that id
 * If necessary, a [ConstructorTransaction](https://github.com/raftAtGit/Chainvayler/blob/master/chainvayler/src/main/java/raft/chainvayler/impl/ConstructorTransaction.java) is created and committed with the arguments passed to constructor.
-A _ConstructorTransaction_ is necessary if:
+A _ConstructorTransaction_ is necessary only if:
   * We are not already in a transaction (inside a `@Modification` method call or in another _ConstructorTransaction_)
 * If this is the local JVM, the JVM which created the object for the first time, it just gets back the reference of the object. All the  rest works as plain POJO world. 
 * Otherwise, if this is due to a remote transaction (coming from another JVM) or a recovery transaction (JVM stopped/crashed and replaying transactions from disk)
-  * Object is created due to _ConstructorTransaction_ using the exact same constructor arguments and gets the exact same id
+  * Object is created using the exact same constructor arguments and gets the exact same id
   * Object is put to local object pool with that id
-* After this point, local and remote JVMs works the same. Transactions representing `@Modification` method calls internally use _target_ object ids. So, as each _chained_ object gets the same id across all JVM sessions, `@Modification` method calls execute on the very same object. 
+* After this point, local and remote JVMs works the same way. Transactions representing `@Modification` method calls internally use _target_ object ids. So, as each _chained_ object gets the same id across all JVM sessions, `@Modification` method calls execute on the very same object. 
 
 Constructor instrumentation also does some things which is not possible via plain Java code. In particular it:
 * Injects some bytecode which is executed before calling `super class'` constructor
 * Wraps `super class'` constructor call in a `try/catch/finally` clause.
 
-These are required to effectively handle exceptions thrown from constructors (edge cases) and initiate a _ConstructorTransaction_ in the correct point.
+These are required to handle exceptions thrown from constructors (edge cases) and initiate a _ConstructorTransaction_ in the correct point.
+
+## [Annotations](#annotations)
+
+### _@Chained_
+
+Marks a class as _Chained_. `@Chained` is inherited so subclasses of a chained class are also chained. But it's a good practice to annotate them too. 
+
+Starting from the _root_ class, _Chainvayler_ [compiler](https://github.com/raftAtGit/Chainvayler/blob/master/chainvayler/src/main/java/raft/chainvayler/compiler/Compiler.java) 
+recursively scans packages and references to other classes and instruments all the classes marked with the `@Chained` annotation. 
+
+### _@Modification_
+
+Marks a method as _Modification_. All methods in a `@Chained` class which modify the data __should__ be marked with this annotation and all such methods __should__ be deterministic.
+
+_Chainvayler_ records invocations to such methods with arguments and executes them in the exact same order on other peers and also when the system is restarted. The invocations are _synchronized_ on the chained _root_. 
+
+### _@Synch_
+
+Marks a method to be _synchronized_ with `@Modification` methods. Just like `@Modification` methods, `@Synch` methods are also _synchronized_ on persistence root.
+ 
+It's not allowed to call directly or indirectly a `@Modification` method inside a `@Synch` method and will result in a  _ModificationInSynchException_.
+
+### _@Include_
+
+Includes a class and its package to be scanned. Can be used in any `@Chained` class. This is typically required when some classes cannot be reached by class and package scanning.
+
+`SecretCustomer` in the bank sample demonstrates this feature.
 
 ## [Consistency](#consistency)
 
@@ -340,6 +370,16 @@ JVM session it's running on.
 
 _Audits_ in the [Bank](https://github.com/raftAtGit/Chainvayler/blob/master/bank-sample/src/main/java/raft/chainvayler/samples/bank/Bank.java) sample demonstrates usage of clock facility.
 
+Clock facility can also be used for deterministic randomness. For example:
+```
+@Modification
+void doSomethingRandom() {
+  Random random = new Random(Clock.nowMillis());
+  // do something with the random value
+  // it will have the exact same sequence on all JVM sessions
+}
+```
+
 ## [Limitations](#limitations)
 
 ### [Garbage collection](#garbage-collection)
@@ -351,6 +391,8 @@ However, this is not possible when _replication_ is enabled. Imagine a _chained_
 When this _chained_ object is replicated to other JVMs, there won't be any local references to it, and hence nothing will stop it to be garbage collected if it's not accessible from the _root_ object. 
 
 So, unfortunately, looks like, we need to keep a reference to all created _chained_ objects in replication mode and prevent them to be garbage collected. 
+
+Maybe, one possible solution is, injecting some _finalizer_ code to _chained_ objects and notify other JVMs when the _chained_ object is garbage collected in the JVM where the _chained_ object is initially created.
 
 ### [Clean shutdown](#clean-shutdown)
 
