@@ -1,5 +1,9 @@
 package raft.chainvayler.impl;
 
+import java.io.IOException;
+import java.io.Serializable;
+import java.lang.ref.ReferenceQueue;
+import java.lang.ref.WeakReference;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -8,9 +12,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
-import java.io.Serializable;
-import java.lang.ref.ReferenceQueue;
-import java.lang.ref.WeakReference;
 
 // inspired by http://www.java2s.com/Code/Java/Collections-Data-Structure/WeakValueHashMap.htm
 // own implementation
@@ -39,8 +40,9 @@ public class WeakValueHashMap<K,V> extends AbstractMap<K,V> implements Serializa
 	
 	// the internal hash map to the weak references of the actual value objects
 	private HashMap<K, WeakValue<V>> references;
+	
 	// the garbage collector's removal queue
-	private ReferenceQueue<V> gcQueue;
+	private transient ReferenceQueue<V> gcQueue;
 
 	
 	/**
@@ -156,6 +158,12 @@ public class WeakValueHashMap<K,V> extends AbstractMap<K,V> implements Serializa
 //			System.out.println("-removed garbage collected " + valueRef.getKey());
 		}
 	}
+	
+	private void readObject(java.io.ObjectInputStream in) throws IOException, ClassNotFoundException {
+		in.defaultReadObject();
+		gcQueue = new ReferenceQueue<V>();
+	}
+
 
 	// for faster removal in {@link #processQueue()} we need to keep track of the key for a value
 	private class WeakValue<T> extends WeakReference<T> {
