@@ -8,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
+import java.io.Serializable;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 
@@ -32,8 +33,10 @@ import java.lang.ref.WeakReference;
  * 
  * adapted from from https://github.com/hzulla/WeakValueHashMap
  */
-public class WeakValueHashMap<K,V> extends AbstractMap<K,V> {
-
+public class WeakValueHashMap<K,V> extends AbstractMap<K,V> implements Serializable {
+	
+	private static final long serialVersionUID = 1L;
+	
 	// the internal hash map to the weak references of the actual value objects
 	private HashMap<K, WeakValue<V>> references;
 	// the garbage collector's removal queue

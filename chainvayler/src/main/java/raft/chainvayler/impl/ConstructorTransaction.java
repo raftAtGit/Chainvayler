@@ -54,7 +54,7 @@ public class ConstructorTransaction implements TransactionWithQuery<RootHolder, 
 				} else {
 					// regular run, just retrieve object from temp storage and put into pool
 					// IMPORTANT: this part runs inside constructor of the target object
-					// so when this transactions completes, we will be still in the constructor of the target object
+					// so when this transaction completes, we will be still in the constructor of the target object
 					IsChained target = tempTargets.remove(tempTargetId);
 					if (target == null) {
 						throw new Error("couldnt get object from temp pool, id: " + tempTargetId); // we throw error to halt Prevayler
