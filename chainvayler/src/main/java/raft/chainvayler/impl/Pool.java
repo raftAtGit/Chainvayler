@@ -15,7 +15,7 @@ public class Pool implements Serializable {
 	 * 
 	 *  @see RootHolder#onRecoveryCompleted()
 	 *  @see #switchToWeakValues() */
-	private Map<Long, IsChained> objects = new HashMap<Long, IsChained>();
+	private Map<Long, IsChained> objects = new HashMap<>();
 
 	private long lastId = 1;
 	
@@ -65,7 +65,7 @@ public class Pool implements Serializable {
 		
 		Context.getInstance().poolLock.lock();
 		try {
-			this.objects = new WeakValueHashMap<Long, IsChained>(objects); 
+			this.objects = new WeakValueHashMap<>(objects); 
 			System.out.println("--done");
 		} finally {
 			Context.getInstance().poolLock.unlock();	
@@ -74,9 +74,16 @@ public class Pool implements Serializable {
 	
 	/** replaces the WeakValueMap with a regular HashMap so after a snapshot read we always start with a HashMap */
 	private void writeObject(java.io.ObjectOutputStream out) throws IOException {
-		Map<Long, IsChained> nonWeakObjects = new HashMap<Long, IsChained>(objects);
+		System.out.println("Pool.writeObject, replacing objects Map with a HashMap");
+		
+		Map<Long, IsChained> nonWeakObjects = new HashMap<>(objects);
+		Map<Long, IsChained> originalObjects = this.objects;
+		
 		this.objects = nonWeakObjects;
 		out.defaultWriteObject();
+		
+		// restore to original Map for cases this object is serialized for any other means  
+		this.objects = originalObjects;
 	}
 
 	@Override
