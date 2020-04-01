@@ -4,6 +4,7 @@ import java.lang.reflect.Field;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.HashMap;
 import java.util.Map;
 
 import raft.chainvayler.Chainvayler;
@@ -131,19 +132,25 @@ public interface Peer extends Remote {
 
 		@Override
 		public Map<Long, IsChained> getPool() throws Exception {
-			Context context = Context.getInstance();
-			return (context == null) ? null : getDeclaredFieldValue("objects", getDeclaredFieldValue("pool", context.root));
+			Map<Long, IsChained> pool = getPoolInternal();
+			// convert pool to HashMap since it might be WeakValueHashMap which is not Serializable 
+			return (pool == null) ? null : new HashMap<>(pool);
 		}
 		
 		@Override
 		public long getPoolSize() throws Exception {
-			Map<Long, IsChained> pool = getPool();
+			Map<Long, IsChained> pool = getPoolInternal();
 			return (pool == null) ? -1 : pool.size();
 		}
 		
 		@Override
 		public void stopReaders() throws Exception {
 			readerStopper.stopReaders();
+		}
+		
+		private Map<Long, IsChained> getPoolInternal() throws Exception {
+			Context context = Context.getInstance();
+			return (context == null) ? null : getDeclaredFieldValue("objects", getDeclaredFieldValue("pool", context.root));
 		}
 		
 		@SuppressWarnings("unchecked")

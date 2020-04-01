@@ -82,7 +82,7 @@ public class Pool implements Serializable {
 		this.objects = nonWeakObjects;
 		out.defaultWriteObject();
 		
-		// restore to original Map for cases this object is serialized for any other means  
+		// restore to original Map for cases this object is serialized for any other means (RMI call for example)
 		this.objects = originalObjects;
 	}
 
