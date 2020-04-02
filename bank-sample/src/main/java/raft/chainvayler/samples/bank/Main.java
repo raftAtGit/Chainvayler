@@ -7,13 +7,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import raft.chainvayler.Chainvayler;
 import raft.chainvayler.Config;
 import raft.chainvayler.impl.Context;
 import raft.chainvayler.samples.bank.rmi.Peer;
 import raft.chainvayler.samples.bank.rmi.PeerManager;
 import raft.chainvayler.samples.bank.secret.SecretCustomer;
 import raft.chainvayler.samples.bank.util.ComLineArgs;
-import raft.chainvayler.Chainvayler;
 
 /**
  * Entry point of sample.
