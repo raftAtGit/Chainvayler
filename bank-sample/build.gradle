@@ -48,28 +48,41 @@ task runStatsRegistry(type: Exec) {
 // we are not using JavaExec since it re-compiles the code which breaks chainvayler instrumentation 
 task runReplicated(type: Exec) {
     commandLine 'java', '-ea', '-Xmx1024m', '-Dhazelcast.logging.type=jdk', 
-    	'-classpath', sourceSets.main.runtimeClasspath.getAsPath(), 
+		'-classpath', sourceSets.main.runtimeClasspath.getAsPath(), 
 		'raft.chainvayler.samples.bank.Main', 
-    	'--persistence', 'false', 
+		'--persistence', 'false', 
 		'--replication', 'true', 
-		'--actions', '10000',
+		'--actions', '1000',
 		'--readers', '0',
 		'--writers', '5',
 		'--peerStatsRegistry', 'localhost'
 }
 
+// we are not using JavaExec since it re-compiles the code which breaks chainvayler instrumentation 
 task runPersisted(type: Exec) {
     commandLine 'java', '-ea', '-Xmx1024m', '-Dhazelcast.logging.type=jdk',
     	'-classpath', sourceSets.main.runtimeClasspath.getAsPath(), 
 		'raft.chainvayler.samples.bank.Main', 
-    	'--persistence', 'true', 
+		'--persistence', 'true', 
 		'--replication', 'false', 
-		'--actions', '10000',
+		'--actions', '1000',
 		'--writers', '5',
 		'--readers', '0',
 		'--peerStatsRegistry', 'localhost'
 }
 
+// we are not using JavaExec since it re-compiles the code which breaks chainvayler instrumentation 
+task runPersistedReplicated(type: Exec) {
+    commandLine 'java', '-ea', '-Xmx1024m', '-Dhazelcast.logging.type=jdk',
+    	'-classpath', sourceSets.main.runtimeClasspath.getAsPath(), 
+		'raft.chainvayler.samples.bank.Main', 
+		'--persistence', 'true', 
+		'--replication', 'true', 
+		'--actions', '500',
+		'--writers', '5',
+		'--readers', '0',
+		'--peerStatsRegistry', 'localhost'
+}
 
 task copyDependencyJars(type: Copy) {
   from configurations.compile
