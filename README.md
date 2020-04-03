@@ -416,11 +416,19 @@ In other words, provided all changes are deterministic, any `@Modification` meth
 
 ## [Performance and Scalability](#performance-and-scalability)
 
-As all objects are always in memory, assuming proper synchronization, reads should be lightning fast. Nothing can beat the performance of reading an object from memory. In most cases you can expect read times `< 1` milliseconds even for very complex data structures. With todays modern hardware, iterating over a `Map` with one million entries barely takes a few milliseconds. Compare that to full table scan over un-indexed columns in relational databases ;)
+As all objects are always in memory, assuming proper synchronization, reads should be lightning fast. Nothing can beat the performance of reading an object from memory. In most cases you can expect read times `< 1` milliseconds even for very complex data structures. With todays modern hardware, iterating over a `Map` with one million entries barely takes a few milliseconds. Compare that to _full table scan_ over un-indexed columns in relational databases ;)
 
 Furthemore, reads are almost linearly scalable. Add more nodes to your cluster and your lightning fast reads will scale-out.
 
 However, as it's now, writes are not scalable. The overall write performance of the system decreases as more nodes are added. But hopefully/possibly there is room for improvement here. 
+
+Below chart shows the overall write performance with respect to number replicas. Tested on an AWS EKS cluster with 4 `d2.xlarge` nodes.
+![Overall write performance](https://chainvayler-public.s3-us-west-2.amazonaws.com/images/chart_overall_write_performance.png)
+
+And this one shows local (no replication) write performance with respect to number of writer threads. Tested on an AWS `d2.xlarge` VM (without Kubernetes)
+![Local write performance](https://chainvayler-public.s3-us-west-2.amazonaws.com/images/chart_local_write_performance.png)
+
+Note, for some reason I couldn't figure out yet, Java IO performance drops to ridiculous numbers in Kubernetes after some heavy writes. That's the reason why high replica counts with persistence are missing in the overall write performance chart and non-replication tests are done on a plain VM.
 
 ## [Determinism](#determinism)
 
