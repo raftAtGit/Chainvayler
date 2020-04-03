@@ -10,7 +10,7 @@
 * [How it works?](#how-it-works)
 * [Annotations](#annotations)
 * [Consistency](#consistency)
-* [Performance](#performance)
+* [Performance and Scalability](#performance-and-scalability)
 * [Determinism](#determinism)
 * [Limitations](#limitations)
   * [Garbage collection](#garbage-collection)
@@ -193,6 +193,88 @@ __Important__: Do not kill writer pods with `-9` switch before they are complete
 
 ### [Running the sample locally](#bank-sample-run-local)
 
+It's also possible to run the _Bank_ sample without Kubernetes. 
+
+First, lets build and publish _Chainvayler_ to local Maven repository: 
+```
+# run in chainvayler/ folder
+./gradlew clean build publishToMavenLocal
+```
+
+Then build and instrument the _Bank_ sample:
+```
+# run in bank-sample/ folder
+./gradlew clean instrument build
+```
+
+You will see the verbose output of _Chainvayler_ compiler, the packages and classes it scanned, found _Chained_ classes and their hierarchy and the modifications made to these classes.
+
+#### Persisted only
+
+Start the _stats registry_ so we can watch the process:
+```
+# run in bank-sample/ folder
+./gradlew runStatsRegistry
+```
+
+In another terminal, run the sample in persisted mode:
+```
+# run in bank-sample/ folder
+./gradlew runPersisted
+```
+
+Watch the process in _stats registry_ terminal. When completed, kill and run both of them again. You will notice transaction count and pool size will not start from zero but continue from the numbers of previous run. This is because, transactions are loaded from the disk and the _Bank_ object restored the state when it was killed last time. Do this a couple of times, the numbers will just continue from the last run.
+
+By default, transactions are saved to `persist/<Root class name>` folder. So in our case this is `persist/raft.chainvayler.samples.bank.Bank` folder. Delete that folder and run the sample again, stats will start from scratch.
+
+#### Replicated only
+
+Start the _stats registry_ so we can watch the process:
+```
+# run in bank-sample/ folder
+./gradlew runStatsRegistry
+```
+
+Open at least 3 more terminals and run the sample in replicated mode:
+```
+# run in bank-sample/ folder
+./gradlew runReplicated
+```
+Hazelcast's CP subsystem requires at least 3 _Raft_ nodes, so you should run at least 3 instances in replicated mode.
+
+#### Persisted and replicated
+
+Since transactions are written to `persist` folder inside `bank-sample` folder, in persisted and replicated mode, you ned to run them in different folders.
+
+Make 2 more copies of `bank-sample` folder:
+```
+# run in root folder
+
+# first make sure we make a clean start
+rm -r bank-sample/persist
+
+cp -r bank-sample bank-sample-2
+cp -r bank-sample bank-sample-3
+```
+
+Start the _stats registry_ so we can watch the process:
+```
+# run in bank-sample/ folder
+./gradlew runStatsRegistry
+```
+
+Open 3 more terminals and run the sample in persisted and replicated mode:
+```
+# run in bank-sample/ folder
+./gradlew runPersistedReplicated
+
+# run in bank-sample-2/ folder
+./gradlew runPersistedReplicated
+
+# run in bank-sample-3/ folder
+./gradlew runPersistedReplicated
+```
+
 ## [How it works?](#how-it-works)
 
 ### Prevayler
@@ -332,8 +414,13 @@ However, the overall system is `strongly consistent` for `writes`. That is, once
 
 In other words, provided all changes are deterministic, any `@Modification` method invocation on any JVM is guaranteed to be executed on the exact same data.
 
+## [Performance and Scalability](#performance-and-scalability)
 
-## [Performance](#performance)
+As all objects are always in memory, assuming proper synchronization, reads should be lightning fast. Nothing can beat the performance of reading an object from memory. In most cases you can expect read times `< 1` milliseconds even for very complex data structures. With todays modern hardware, iterating over a `Map` with one million entries barely takes a few milliseconds. Compare that to full table scan over un-indexed columns in relational databases ;)
+
+Furthemore, reads are almost linearly scalable. Add more nodes to your cluster and your lightning fast reads will scale-out.
+
+However, as it's now, writes are not scalable. The overall write performance of the system decreases as more nodes are added. But hopefully/possibly there is room for improvement here. 
 
 ## [Determinism](#determinism)
 
@@ -403,3 +490,35 @@ The _Bank_ sample registers a shutdown hook to the JVM and shutdowns _Chainvayle
 But obviously this is not a bullet proof solution. A possible general solution is, if an awaited transaction is not received after some time, assume sending peer died and send the network a `NoOp` transaction with that ID, so the rest of the network can continue operating.
 
 ## [FAQ and more](#faq-and-more)
+
+### Comparision to ORM frameworks
+
+ORM (Object-Relational Mapping) frameworks improved a lot in the last 10 years and made it much easier to map object graphs to relational databases. 
+
+However, the still remaining fact is, objects graphs don't naturally fit into relational databases. You need to sacrifice something and there is the overhead for sure.
+
+I would call the data model classes used in conjuction with ORM frameworks as __object oriented-ish__, since they are not trully object oriented. The very main aspects of object oriented designs, inheritance and polymorphism, and even encapsulation is either impossible or is a real pain with ORM frameworks.
+
+Indeed, possibly this was my main motivation to implement this PoC project: I'm a fan of object oriented design and strongly believe it is naturally a good fit to model the world we are living in. I want my objects persisted/replicated naturally, without compromising basic object oriented design principles.
+
+### Comparision to Hazelcast
+
+Hazelcast is a great framework which provides many distributed data structures, locks/maps/queues etc. But still, those structures are not drop-in replacements for Java locks/maps/queues, one needs to be aware of he/she is working with a distributed object and know the limitations. And you are limited to data structures Hazelcast provides.
+
+With _Chainvayler_ there is almost no limit for what data structures can be used. It's truly object oriented and almost completely transparent.
+
+### Startup time when many many transactions are already in place
+
+As mentioned, when a node is restarted or joined to a cluster, it executes all transactions up to that point (retrieved either from disk or from network). This can be time consuming if there are already many transactions in place.
+
+To accelerate this process, _root_ object can be casted to [Storage](https://github.com/raftAtGit/Chainvayler/blob/master/chainvayler/src/main/java/raft/chainvayler/Storage.java) interface and a snapshot can be taken. 
+
+For example, for the _Bank_ sample:
+```
+((Storage)bank).takeSnapshot();
+```
+
+Taking snaphot _serializes_ the _root_ object to disk. Restarts after that point, loads the _serialized_ copy of the _root_ object and executes transactions which happened only after that point.
+
+The injected `takeSnapshot` method uses _Prevayler's_ 
+[takeSnapshot](http://prevayler.org/apidocs/2.6/org/prevayler/Prevayler.html#takeSnapshot()) method.
