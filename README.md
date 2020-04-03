@@ -16,6 +16,7 @@
   * [Garbage collection](#garbage-collection)
   * [Clean shutdown](#clean-shutdown)
 * [FAQ and more](#faq-and-more)
+* [Conclusion](#conclusion)
 
 ## [What is this?](#what-is-this)
 
@@ -530,3 +531,10 @@ Taking snaphot _serializes_ the _root_ object to disk. Restarts after that point
 
 The injected `takeSnapshot` method uses _Prevayler's_ 
 [takeSnapshot](http://prevayler.org/apidocs/2.6/org/prevayler/Prevayler.html#takeSnapshot()) method.
+
+## [Conclusion](#conclusion)
+
+So happy transparent persistence and replication to your POJOs :)
+
+Cheers,
+_r a f t (Hakan Eryargi)_
