@@ -1,5 +1,5 @@
 # Chainvayler
-## ~Transparent Replication and Persistence for POJOs (Plain Old Java Objects)
+## ~Transparent Replication and Persistence for POJO (Plain Old Java Object) Graphs
 ![chainvayler magic](https://chainvayler-public.s3-us-west-2.amazonaws.com/images/chainvayler_magic_3.png) 
 
 * [What is this?](#what-is-this)
@@ -25,10 +25,9 @@ This is a _proof of concept_ library which provides [POJOs](http://en.wikipedia.
 almost __transparently__.
 
 _Chainvayler_ requires neither implementing special interfaces nor extending from special classes nor a backing relational database. 
-Only some _@Annotations_ and conforming a few rules is necessary.
+Only some _@Annotations_ and conforming a few rules is necessary. _Chainvayler_ does its magic by instrumentation (injecting bytecode) of Java classes.
 
-Either _replication_ or _persistence_ can be disabled independently. If _replication_ is disabled, you will have locally persisted POJOs. 
-If _persistence_ is disabled, you will have your POJOs replicated over JVMs possibly spreading over multiple nodes. 
+Either _replication_ or _persistence_ can be disabled independently. If _replication_ is disabled, you will have locally persisted POJOs. If _persistence_ is disabled, you will have your POJOs replicated over JVMs possibly spreading over multiple nodes. 
 If both _replication_ and _persistence_ is disabled, well you will only have _Chainvayler_'s overhead ;)
 
 I've found the idea really promising, so went ahead and made a PoC implementation.
