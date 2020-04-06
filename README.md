@@ -65,7 +65,7 @@ Library library = Chainvayler.create(Library.class, config);
 Now, add as many books as you want to your library, they will be _automagically_ persisted and replicated to other JVMs. 
 Kill your program any time, when you restart it, the previously added books will be in your library.
 
-Note, the call to _Chainvayler.create(..)_ is only required for the _root_ of object graph. All other objects are created in regular ways, either with the _new_ oprerator or via factories, builders whatever. As it is, _Chainvayler_ is quite flexible, other objects may be other instances of _root_ class, subclasses/superclasses of it, or instances of a completely different class hierarchy.
+Note, the call to _Chainvayler.create(..)_ is only required for the _root_ of object graph. All other objects are created in regular ways, either with the _new_ operator or via factories, builders whatever. As it is, _Chainvayler_ is quite flexible, other objects may be other instances of _root_ class, subclasses/superclasses of it, or instances of a completely different class hierarchy.
 
 `@Chained` annotation marks the classes which will be managed by _Chainvayler_ and `@Modification` annotation marks the methods in _chained_ classes which modifies the data (class variables).
 
@@ -284,7 +284,7 @@ To explain how _Chainvayler_ works, I need to first introduce [Prevayler](http:/
 
 > Encapsulate all changes to your data into _Transaction_ classes and pass over me. I will write those transactions to disk and then execute on your data. When the program is restarted, I will execute those transactions in the same order on your data. Provided all such changes are deterministic, we will end up with the exact same state just before the program terminated last time.
 
-This is simply a brilliant idea to persist POJOs. Actually, this is the exact same sequence databases store and re-execute transaction logs. 
+This is simply a brilliant idea to persist POJOs. Actually, this is the exact same sequence databases store and re-execute transaction logs after a crash recovery. 
 
 ### Postvayler
 
@@ -428,6 +428,8 @@ Below chart shows the overall write performance with respect to number replicas.
 
 And this one shows local (no replication) write performance with respect to number of writer threads. Tested on an AWS `d2.xlarge` VM (without Kubernetes)
 ![Local write performance](https://chainvayler-public.s3-us-west-2.amazonaws.com/images/chart_local_write_performance.png)
+
+Above chart also suggests, disk write speed is not the bottleneck of low TX/second numbers when both replication and persistence is enabled. Possibly there is a lot to improve here by making disk writes asynchronous.
 
 Note, for some reason I couldn't figure out yet, Java IO performance drops to ridiculous numbers in Kubernetes after some heavy writes. That's the reason why high replica counts with persistence are missing in the overall write performance chart and non-replication tests are done on a plain VM.
 
