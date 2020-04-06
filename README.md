@@ -1,6 +1,6 @@
 # Chainvayler
 ## ~Transparent Replication and Persistence for POJOs (Plain Old Java Objects)
-![chainvayler magic](https://chainvayler-public.s3-us-west-2.amazonaws.com/images/chainvayler_magic_2.png) 
+![chainvayler magic](https://chainvayler-public.s3-us-west-2.amazonaws.com/images/chainvayler_magic_3.png) 
 
 * [What is this?](#what-is-this)
 * [Introduction](#introduction)
