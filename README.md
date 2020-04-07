@@ -42,7 +42,7 @@ Here is a quick sample:
 ```
 @Chained
 class Library {
-   final Map<Integer, Book> books = new HashMap<Integer, Book>();
+   final Map<Integer, Book> books = new HashMap<>();
    int lastBookId = 1;
    
    @Modification
@@ -282,7 +282,7 @@ Open 3 more terminals and run the sample in persisted and replicated mode:
 
 To explain how _Chainvayler_ works, I need to first introduce [Prevayler](http://prevayler.org/). It is a brilliant library to persist real POJOs. In short it says:
 
-> Encapsulate all changes to your data into _Transaction_ classes and pass over me. I will write those transactions to disk and then execute on your data. When the program is restarted, I will execute those transactions in the same order on your data. Provided all such changes are deterministic, we will end up with the exact same state just before the program terminated last time.
+> Encapsulate all changes to your data into _Transaction_ classes and pass over me. I will write those transactions to disk and then execute on your data. When the program is restarted, I will execute those transactions in the exact same order on your data. Provided all such changes are deterministic, we will end up with the exact same state just before the program terminated last time.
 
 This is simply a brilliant idea to persist POJOs. Actually, this is the exact same sequence databases store and re-execute transaction logs after a crash recovery. 
 
@@ -494,7 +494,7 @@ Maybe, one possible solution is, injecting some _finalizer_ code to _chained_ ob
 
 ### [Clean shutdown](#clean-shutdown)
 
-When _replication_ is enabled, clean shutdown is very important. In particular, if a writer reserves a transaction ID in the network and dies before sending the transaction to the network, the whole network will hang, they will wait indefinitely to receive that missing transaction. 
+When _replication_ is enabled, clean shutdown is very important. In particular, if a node reserves a transaction ID in the network and dies before sending the transaction to the network, the whole network will hang, they will wait indefinitely to receive that missing transaction. 
 
 The _Bank_ sample registers a shutdown hook to the JVM and shutdowns _Chainvayler_ when JVM shutdown is initiated. This works fine for demonstration purposes unless JVM is killed with `-9 (-SIGKILL)` switch or a power outage happens.
 
