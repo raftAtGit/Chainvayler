@@ -25,7 +25,7 @@ This is a _proof of concept_ library which provides [POJOs](http://en.wikipedia.
 almost __transparently__.
 
 _Chainvayler_ requires neither implementing special interfaces nor extending from special classes nor a backing relational database. 
-Only some _@Annotations_ and conforming a few rules is necessary. _Chainvayler_ does its magic by instrumentation (injecting bytecode) of Java classes.
+Only some `@Annotations` and conforming a few rules is necessary. _Chainvayler_ does its magic by instrumentation (injecting bytecode) of Java classes.
 
 Either _replication_ or _persistence_ can be disabled independently. If _replication_ is disabled, you will have locally persisted POJOs. If _persistence_ is disabled, you will have your POJOs replicated over JVMs possibly spreading over multiple nodes. 
 If both _replication_ and _persistence_ is disabled, well you will only have _Chainvayler_'s overhead ;)
@@ -36,7 +36,7 @@ Sounds too good to be true? Well, keep reading... ;)
 
 ## [Introduction](#introduction)
 
-As mentioned, _Chainvayler_ only requires some _@Annotations_ and conforming a few rules.
+As mentioned, _Chainvayler_ only requires some `@Annotations` and conforming a few rules.
 
 Here is a quick sample:
 ```
@@ -288,7 +288,7 @@ This is simply a brilliant idea to persist POJOs. Actually, this is the exact sa
 
 ### Postvayler
 
-However, the thing is _Prevayler_ is a bit too verbose. You need to write _Transaction_ classes for each operation that modifies your data. And it’s also a bit old fashioned considering today’s wonderful _@Annotated_ Java world.
+However, the thing is _Prevayler_ is a bit too verbose. You need to write _Transaction_ classes for each operation that modifies your data. And it’s also a bit old fashioned considering today’s wonderful `@Annotated` Java world.
 
 Here comes into scene [Postvayler](https://github.com/raftAtGit/Postvayler). It's the predecessor of _Chainvayler_, which was also a PoC project by myself for transperent POJO persistence. 
 
@@ -323,7 +323,7 @@ private void __postvayler_addBook(Book book) {
 
 As can been seen, if there is no _Postvayler_ context around, the object bahaves like the original POJO with an ignorable overhead.
 
-Constructors of _@Persistent_ classes are also instrumented to keep track of of them. They are pooled weekly so GC works as expected
+Constructors of `@Persistent` classes are also instrumented to keep track of of them. They are pooled weekly so GC works as expected
 
 ### Chainvayler
 
