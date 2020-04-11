@@ -292,7 +292,7 @@ However, the thing is _Prevayler_ is a bit too verbose. You need to write _Trans
 
 Here comes into scene [Postvayler](https://github.com/raftAtGit/Postvayler). It's the predecessor of _Chainvayler_, which was also a PoC project by myself for transperent POJO persistence. 
 
-Postvayler injects bytecode into (instruments) __javac__ compiled `@Persistent` classes such that every `@Persist` method in a `@Persistent` class is modified to execute that method via `Prevayler`.
+Postvayler injects bytecode into (instruments) __javac__ compiled `@Chained` classes such that every `@Modification` method in a `@Chained` class is modified to execute that method via `Prevayler`.
 
 For example, the `addBook(Book)` method in the introduction sample becomes something like (omitting some details for readability):
 ```
@@ -323,7 +323,7 @@ private void __postvayler_addBook(Book book) {
 
 As can been seen, if there is no _Postvayler_ context around, the object bahaves like the original POJO with an ignorable overhead.
 
-Constructors of `@Persistent` classes are also instrumented to keep track of of them. They are pooled weekly so GC works as expected
+Constructors of `@Chained` classes are also instrumented to keep track of of them. They are pooled weekly so GC works as expected
 
 ### Chainvayler
 
