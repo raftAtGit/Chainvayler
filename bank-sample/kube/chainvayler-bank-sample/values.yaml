@@ -42,9 +42,9 @@ chainvayler:
 java:
   enableAssertions: false
   # Java max memory for writer/reader/reader-writer peers
-  maxMemory: 1024m
+  maxMemory: 4096m
   # Java max memory for peer-stats pod
-  maxStatsMemory: 2048m
+  maxStatsMemory: 8192m
   
 hazelcast:
   mapConfig:

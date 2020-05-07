@@ -96,7 +96,7 @@ public class Chainvayler<T> {
 			final Prevayler<RootHolder> prevayler;
 			if (config.isPersistenceEnabled()) {
 				PrevaylerFactory<RootHolder> factory = new PrevaylerFactory<RootHolder>();
-				factory.configurePrevalenceDirectory("persist/" + rootClass.getName());
+				factory.configurePrevalenceDirectory(config.getPersistenceConfig().getPersistDir());
 				factory.configurePrevalentSystem(new RootHolder());
 				
 				prevayler = factory.create();
@@ -110,7 +110,7 @@ public class Chainvayler<T> {
 			this.rootHolder = prevayler.prevalentSystem();
 			
 			if (config.isReplicationEnabled()) {
-				this.hazelcastPrevayler = new HazelcastPrevayler((PrevaylerImpl<RootHolder>) prevayler, config.getHazelcastConfig(), config.getReplicationConfig());
+				this.hazelcastPrevayler = new HazelcastPrevayler((PrevaylerImpl<RootHolder>) prevayler, config.getReplicationConfig());
 				contextRootConstructor.newInstance(new GCPreventingPrevayler(hazelcastPrevayler), rootHolder);
 			} else {
 				contextRootConstructor.newInstance(new GCPreventingPrevayler(prevayler), rootHolder);
@@ -157,6 +157,11 @@ public class Chainvayler<T> {
 	
 	public static <T> T create(Class<T> clazz) throws Exception {
 		return create(clazz, new Config());
+	}
+	
+	/** Creates a Chainvayler with only persistence enabled using giving persistence directory */
+	public static <T> T create(Class<T> clazz, String persistDir) throws Exception {
+		return create(clazz, Config.persistence(persistDir));
 	}
 	
 	public static <T> T create(Class<T> clazz, Config config) throws Exception {

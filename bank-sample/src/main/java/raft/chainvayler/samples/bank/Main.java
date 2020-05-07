@@ -40,19 +40,13 @@ public class Main {
 		Config config = new Config()
 				.setPersistenceEnabled(options.persistence)
 				.setReplicationEnabled(options.replication);
-		config.getReplicationConfig().setTxIdReserveSize(options.txIdReserveSize);
 		
-		config.getHazelcastConfig().getMapConfig("default").setAsyncBackupCount(options.hazelcastAsyncBackupCount);
+		config.getReplicationConfig()
+				.setKubernetes(options.kubernetes)
+				.setKubernetesServiceName(options.kubernetesServiceName)
+				.setImapAsyncBackupCount(options.hazelcastAsyncBackupCount)
+				.setTxIdReserveSize(options.txIdReserveSize);
 		
-		if (options.kubernetes) {
-			config.getHazelcastConfig().getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);
-			config.getHazelcastConfig().getNetworkConfig().getJoin().getKubernetesConfig().setEnabled(true)
-					.setProperty("service-dns", options.kubernetesServiceName);
-		} else {
-			config.getHazelcastConfig().getNetworkConfig().getJoin().getMulticastConfig().setEnabled(true);
-			config.getHazelcastConfig().getNetworkConfig().getJoin().getKubernetesConfig().setEnabled(false);
-		}
-
 		if (options.peerStatsRegistry != null) 
 			registerPeerRmi();
 		
@@ -528,7 +522,7 @@ public class Main {
 		}
 	}
 	
-    private static Options parseOptions(ComLineArgs comLine, String[] args) {
+    private static Options parseOptions(ComLineArgs comLine) {
 		Options options = new Options();
 		
 		if (comLine.containsArg("--persistence"))
@@ -605,7 +599,7 @@ public class Main {
 		    System.exit(0);
 		}
 		
-		new Main(parseOptions(comLine, args)).run();
+		new Main(parseOptions(comLine)).run();
 	}
 	
 }

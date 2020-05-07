@@ -111,7 +111,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	private Executor assertionExecutor = null;
 	
-	public HazelcastPrevayler(PrevaylerImpl<RootHolder> prevayler, Config hazelcastConfig, raft.chainvayler.Config.ReplicationConfig replicationConfig) throws Exception {
+	public HazelcastPrevayler(PrevaylerImpl<RootHolder> prevayler, raft.chainvayler.Config.ReplicationConfig replicationConfig) throws Exception {
 		this.prevayler = prevayler;
 	
 		this.prevalerGuard = Utils.getDeclaredFieldValue("_guard", prevayler);
@@ -129,7 +129,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		this.txIdReserveSize = replicationConfig.getTxIdReserveSize(); 
 		
 		System.out.println("initializing Hazelcast");
-		this.hazelcast = Hazelcast.newHazelcastInstance(hazelcastConfig);
+		this.hazelcast = Hazelcast.newHazelcastInstance(createHazelcastConfig(replicationConfig));
 		
 		System.out.println("waiting for Hazelcast is ready..");
 		boolean ready = hazelcast.getCPSubsystem().getCPSubsystemManagementService().awaitUntilDiscoveryCompleted(10, TimeUnit.MINUTES);
@@ -171,6 +171,32 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	public void shutdown() {
 		stopped = true;
 	}
+	
+	private Config createHazelcastConfig(raft.chainvayler.Config.ReplicationConfig replicationConfig) {
+		Config hazelcastConfig = new Config();
+		
+		hazelcastConfig.getCPSubsystemConfig().setCPMemberCount(replicationConfig.getNumberOfRaftNodes());
+		
+		hazelcastConfig.getMapConfig("default")
+			// we know for sure that entries in global txMap cannot be overridden, so we are safe to read from backups
+			.setReadBackupData(true)
+			.setBackupCount(replicationConfig.getImapBackupCount())
+			.setAsyncBackupCount(replicationConfig.getImapAsyncBackupCount());
+		
+		if (replicationConfig.isKubernetes()) {
+			if (replicationConfig.getKubernetesServiceName() == null)
+				throw new IllegalArgumentException("Kubernetes service name is required when Kubernetes mode is enabled");
+			
+			hazelcastConfig.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(false);
+			hazelcastConfig.getNetworkConfig().getJoin().getKubernetesConfig().setEnabled(true)
+					.setProperty("service-dns", replicationConfig.getKubernetesServiceName());
+			
+		} else {
+			hazelcastConfig.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(true);
+			hazelcastConfig.getNetworkConfig().getJoin().getKubernetesConfig().setEnabled(false);
+		}
+		return hazelcastConfig;
+	} 
 	
 	private long getGlobalTxId() {
 		Lock txIdLock = hazelcast.getCPSubsystem().getLock("txId");
