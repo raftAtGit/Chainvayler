@@ -10,6 +10,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -38,6 +39,7 @@ import org.prevayler.implementation.TransactionGuide;
 import org.prevayler.implementation.TransactionTimestamp;
 import org.prevayler.implementation.TransactionWithQueryCapsuleCV;
 import org.prevayler.implementation.journal.Journal;
+import org.prevayler.implementation.journal.TransientJournal;
 import org.prevayler.implementation.publishing.TransactionPublisher;
 import org.prevayler.implementation.publishing.TransactionSubscriber;
 
@@ -111,7 +113,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	private Executor assertionExecutor = null;
 	
-	public HazelcastPrevayler(PrevaylerImpl<RootHolder> prevayler, raft.chainvayler.Config.ReplicationConfig replicationConfig) throws Exception {
+	public HazelcastPrevayler(PrevaylerImpl<RootHolder> prevayler, raft.chainvayler.Config.Replication replicationConfig) throws Exception {
 		this.prevayler = prevayler;
 	
 		this.prevalerGuard = Utils.getDeclaredFieldValue("_guard", prevayler);
@@ -172,7 +174,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		stopped = true;
 	}
 	
-	private Config createHazelcastConfig(raft.chainvayler.Config.ReplicationConfig replicationConfig) {
+	private Config createHazelcastConfig(raft.chainvayler.Config.Replication replicationConfig) {
 		Config hazelcastConfig = new Config();
 		
 		hazelcastConfig.getCPSubsystemConfig().setCPMemberCount(replicationConfig.getNumberOfRaftNodes());
@@ -377,6 +379,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			try {
 				if (Context.DEBUG) System.out.printf("executing next txId: %s, thread: %s \n", nextTxId, Thread.currentThread());
 				journal.append(guide);
+				if (Context.DEBUG) printJournalSize("execute");
 				prevalerGuard.receive(timestamp);
 				ownTxCount++;
 				if (Context.DEBUG) System.out.printf("executed next txId: %s, thread: %s \n", nextTxId, Thread.currentThread());
@@ -425,6 +428,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		try {
 			if (Context.DEBUG) System.out.printf("executing next txId: %s, thread: %s \n", nextTxId, Thread.currentThread());
 			journal.append(guide);
+			if (Context.DEBUG) printJournalSize("execute with query");
 			prevalerGuard.receive(timestamp);
 			ownTxCount++;
 			if (Context.DEBUG) System.out.printf("executed next txId: %s, thread: %s \n", nextTxId, Thread.currentThread());
@@ -594,6 +598,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			
 			journal.append(new TransactionGuide(transaction, Turn.first()));
 			if (Context.DEBUG) System.out.printf("appended journal %s, thread: %s \n", transaction.systemVersion(), Thread.currentThread());
+			if (Context.DEBUG) printJournalSize("remote commit");
 			
 			prevalerGuard.receive(transaction);
 			if (Context.DEBUG) System.out.printf("called prevalerGuard.receive for %s \n", transaction.systemVersion());
@@ -648,6 +653,13 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
+		}
+	}
+
+	private void printJournalSize(String prefix) throws Exception {
+		if (journal instanceof TransientJournal) {
+			List<?> list = Utils.getDeclaredFieldValue("journal", journal);
+			System.out.println(prefix + ", journal size: " + list.size());
 		}
 	}
 

@@ -37,15 +37,16 @@ public class Main {
 	public void run() throws Exception {
 		System.out.println("running with options: \n" + options);
 		
-		Config config = new Config()
-				.setPersistenceEnabled(options.persistence)
-				.setReplicationEnabled(options.replication);
+		Config config = new Config();
 		
-		config.getReplicationConfig()
-				.setKubernetes(options.kubernetes)
-				.setKubernetesServiceName(options.kubernetesServiceName)
-				.setImapAsyncBackupCount(options.hazelcastAsyncBackupCount)
-				.setTxIdReserveSize(options.txIdReserveSize);
+		config.getPersistence().setEnabled(options.persistence);
+		
+		config.getReplication()
+			.setEnabled(options.replication)
+			.setKubernetes(options.kubernetes)
+			.setKubernetesServiceName(options.kubernetesServiceName)
+			.setImapAsyncBackupCount(options.hazelcastAsyncBackupCount)
+			.setTxIdReserveSize(options.txIdReserveSize);
 		
 		if (options.peerStatsRegistry != null) 
 			registerPeerRmi();

@@ -94,9 +94,9 @@ public class Chainvayler<T> {
 			}
 			
 			final Prevayler<RootHolder> prevayler;
-			if (config.isPersistenceEnabled()) {
+			if (config.getPersistence().isEnabled()) {
 				PrevaylerFactory<RootHolder> factory = new PrevaylerFactory<RootHolder>();
-				factory.configurePrevalenceDirectory(config.getPersistenceConfig().getPersistDir());
+				factory.configurePrevalenceDirectory(config.getPersistence().getPersistDir());
 				factory.configurePrevalentSystem(new RootHolder());
 				
 				prevayler = factory.create();
@@ -109,8 +109,8 @@ public class Chainvayler<T> {
 			
 			this.rootHolder = prevayler.prevalentSystem();
 			
-			if (config.isReplicationEnabled()) {
-				this.hazelcastPrevayler = new HazelcastPrevayler((PrevaylerImpl<RootHolder>) prevayler, config.getReplicationConfig());
+			if (config.getReplication().isEnabled()) {
+				this.hazelcastPrevayler = new HazelcastPrevayler((PrevaylerImpl<RootHolder>) prevayler, config.getReplication());
 				contextRootConstructor.newInstance(new GCPreventingPrevayler(hazelcastPrevayler), rootHolder);
 			} else {
 				contextRootConstructor.newInstance(new GCPreventingPrevayler(prevayler), rootHolder);
@@ -119,7 +119,7 @@ public class Chainvayler<T> {
 			if (!rootHolder.isInitialized()) {
 				prevayler.execute(new InitRootTransaction((Class)rootClass));
 			}
-			rootHolder.onRecoveryCompleted(!config.isReplicationEnabled());
+			rootHolder.onRecoveryCompleted(!config.getReplication().isEnabled());
 			
 			instance = this;
 			

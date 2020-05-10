@@ -4,67 +4,59 @@ public class Config {
 
 	/** Convenience method to create a persistence only Config */
 	public static Config persistence(String persistDir) {
-		Config config = new Config()
-			.setPersistenceEnabled(true)
-			.setReplicationEnabled(false);
+		Config config = new Config();
 		
-		config.getPersistenceConfig().setPersistDir(persistDir);
+		config.getPersistence()
+			.setEnabled(true)
+			.setPersistDir(persistDir);
+		
+		config.getReplication().setEnabled(false);
+		
 		return config;
 	}
 	
-	private boolean persistenceEnabled = true;
-	private boolean replicationEnabled = true;
-	
-	private ReplicationConfig replicationConfig = new ReplicationConfig();
-	private PersistenceConfig persistenceConfig = new PersistenceConfig();
+	private Replication replicationConfig = new Replication();
+	private Persistence persistenceConfig = new Persistence();
 	
 	public Config() {
 	}
 
-	public boolean isPersistenceEnabled() {
-		return persistenceEnabled;
-	}
-
-	public Config setPersistenceEnabled(boolean persistenceEnabled) {
-		this.persistenceEnabled = persistenceEnabled;
-		return this;
-	}
-
-	public boolean isReplicationEnabled() {
-		return replicationEnabled;
-	}
-
-	public Config setReplicationEnabled(boolean replicationEnabled) {
-		this.replicationEnabled = replicationEnabled;
-		return this;
-	}
-
-	public PersistenceConfig getPersistenceConfig() {
+	/** return persistence config */
+	public Persistence getPersistence() {
 		return persistenceConfig;
 	}
 	
-	public ReplicationConfig getReplicationConfig() {
+	/** return replication config */
+	public Replication getReplication() {
 		return replicationConfig;
 	}
 	
-	public void setReplicationConfig(ReplicationConfig replicationConfig) {
-		this.replicationConfig = replicationConfig;
-	}
-
-	public static class PersistenceConfig {
+	public static class Persistence {
+		private boolean enabled = true;
 		private String persistDir = "persist";
+
+		public boolean isEnabled() {
+			return enabled;
+		}
+
+		public Persistence setEnabled(boolean enabled) {
+			this.enabled = enabled;
+			return this;
+		}
 
 		public String getPersistDir() {
 			return persistDir;
 		}
 
-		public PersistenceConfig setPersistDir(String persistDir) {
+		public Persistence setPersistDir(String persistDir) {
 			this.persistDir = persistDir;
 			return this;
 		}
 	}
 	
-	public static class ReplicationConfig {
+	public static class Replication {
+		
+		private boolean enabled = true;
 		
 		private int numberOfRaftNodes = 3;
 		private boolean kubernetes = false;
@@ -75,11 +67,20 @@ public class Config {
 		
 		private int txIdReserveSize = 0;
 
+		public boolean isEnabled() {
+			return enabled;
+		}
+
+		public Replication setEnabled(boolean enabled) {
+			this.enabled = enabled;
+			return this;
+		}
+		
 		public int getNumberOfRaftNodes() {
 			return numberOfRaftNodes;
 		}
 
-		public ReplicationConfig setNumberOfRaftNodes(int numberOfRaftNodes) {
+		public Replication setNumberOfRaftNodes(int numberOfRaftNodes) {
 			this.numberOfRaftNodes = numberOfRaftNodes;
 			return this;
 		}
@@ -88,7 +89,7 @@ public class Config {
 			return kubernetes;
 		}
 
-		public ReplicationConfig setKubernetes(boolean kubernetes) {
+		public Replication setKubernetes(boolean kubernetes) {
 			this.kubernetes = kubernetes;
 			return this;
 		}
@@ -97,7 +98,7 @@ public class Config {
 			return kubernetesServiceName;
 		}
 
-		public ReplicationConfig setKubernetesServiceName(String kubernetesServiceName) {
+		public Replication setKubernetesServiceName(String kubernetesServiceName) {
 			this.kubernetesServiceName = kubernetesServiceName;
 			return this;
 		}
@@ -106,7 +107,7 @@ public class Config {
 			return imapBackupCount;
 		}
 
-		public ReplicationConfig setImapBackupCount(int imapBackupCount) {
+		public Replication setImapBackupCount(int imapBackupCount) {
 			this.imapBackupCount = imapBackupCount;
 			return this;
 		}
@@ -115,7 +116,7 @@ public class Config {
 			return imapAsyncBackupCount;
 		}
 
-		public ReplicationConfig setImapAsyncBackupCount(int imapAsyncBackupCount) {
+		public Replication setImapAsyncBackupCount(int imapAsyncBackupCount) {
 			this.imapAsyncBackupCount = imapAsyncBackupCount;
 			return this;
 		}
@@ -124,7 +125,7 @@ public class Config {
 			return txIdReserveSize;
 		}
 
-		public ReplicationConfig setTxIdReserveSize(int txIdReserveSize) {
+		public Replication setTxIdReserveSize(int txIdReserveSize) {
 			if (txIdReserveSize < 0)
 				throw new IllegalArgumentException("txIdReserveSize: " + txIdReserveSize);
 			this.txIdReserveSize = txIdReserveSize;
