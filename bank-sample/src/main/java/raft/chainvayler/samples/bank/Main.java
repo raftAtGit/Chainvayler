@@ -58,6 +58,8 @@ public class Main {
 		
 		Bank bank = Chainvayler.create(Bank.class, config);
 		
+		System.out.println("last snapshot version: " + Chainvayler.getLastSnapshotVersion());
+		
 		startReaderThreads(bank);
 		startWriterThreads(bank);
 	}
@@ -115,12 +117,17 @@ public class Main {
 			System.out.println("stopping reader threads");
 			stopReaders = true;
 		}
+		if (options.takeSnapshot) {
+			System.out.println("taking snapshot");
+			Chainvayler.takeSnapshot();
+			System.out.println("last snapshot version: " + Chainvayler.getLastSnapshotVersion());
+		}
 		
 		if (peer != null) {
 			peer.completed = true;
 			
-			peer.lastTxPerSecond = 1000f * Chainvayler.getInstance().getTransactionCount()/(endTime - startTime);
-			peer.lastOwnTxPerSecond = 1000f * Chainvayler.getInstance().getOwnTransactionCount()/(endTime - startTime);
+			peer.lastTxPerSecond = 1000f * Chainvayler.getTransactionCount()/(endTime - startTime);
+			peer.lastOwnTxPerSecond = 1000f * Chainvayler.getOwnTransactionCount()/(endTime - startTime);
 		}
 	}
 
@@ -504,6 +511,7 @@ public class Main {
 		public boolean stopReaders = true;
 		public String peerStatsRegistry;
 		public boolean debug = false;
+		public boolean takeSnapshot = false;
 		
 		@Override
 		public String toString() {
@@ -519,7 +527,8 @@ public class Main {
 				   + "\n    hazelcastAsyncBackupCount: " + hazelcastAsyncBackupCount 
 				   + "\n    stopReaders: " + stopReaders
 				   + "\n    peerStatsRegistry: " + peerStatsRegistry
-				   + "\n    debug: " + debug;
+				   + "\n    debug: " + debug
+				   + "\n    takeSnapshot: " + takeSnapshot;
 		}
 	}
 	
@@ -559,6 +568,9 @@ public class Main {
 		if (comLine.containsArg("--hazelcastAsyncBackupCount"))
             options.hazelcastAsyncBackupCount = Integer.parseInt(comLine.getArg("--hazelcastAsyncBackupCount"));
 		
+		if (comLine.containsArg("--takeSnapshot"))
+            options.takeSnapshot  = Boolean.parseBoolean(comLine.getArg("--takeSnapshot"));
+		
 		if (comLine.containsArg("--debug"))
             options.debug  = Boolean.parseBoolean(comLine.getArg("--debug"));
 		
@@ -589,6 +601,7 @@ public class Main {
 	    		   "                                                 customers and accounts are created");
 	    ps.println("    --peerStatsRegistry <host|IP>        : if provided, peer is registered by using this RMI registry");
 	    ps.println("    --hazelcastAsyncBackupCount          : async backup count for Hazelcast IMap");
+	    ps.println("    --takeSnapshot <true|false*>         : take snaphot of the system after writer threads completed?");
 	    ps.println("    --debug <true|false*>        		 : enable debug logging?");
 	}
 	

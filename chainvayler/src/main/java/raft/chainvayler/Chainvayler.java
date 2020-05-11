@@ -1,12 +1,20 @@
 package raft.chainvayler;
 
+import java.io.File;
+import java.io.IOError;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.util.Set;
 
 import org.prevayler.Prevayler;
 import org.prevayler.PrevaylerFactory;
+import org.prevayler.implementation.PrevaylerDirectory;
 import org.prevayler.implementation.PrevaylerImpl;
+import org.prevayler.implementation.snapshot.GenericSnapshotManager;
 
+import raft.chainvayler.impl.Context;
 import raft.chainvayler.impl.GCPreventingPrevayler;
 import raft.chainvayler.impl.HazelcastPrevayler;
 import raft.chainvayler.impl.InitRootTransaction;
@@ -50,6 +58,7 @@ public class Chainvayler<T> {
 	
 	private Object prevalerGuard;
 	private Field systemVersionField;
+	private PrevaylerDirectory prevaylerDirectory;
 	
 	private Chainvayler(Class<T> rootClass, Config config) throws Exception {
 		this.rootClass = rootClass;
@@ -93,19 +102,30 @@ public class Chainvayler<T> {
 				throw new NotCompiledException(rootClass.getName(), e);
 			}
 			
-			final Prevayler<RootHolder> prevayler;
-			if (config.getPersistence().isEnabled()) {
-				PrevaylerFactory<RootHolder> factory = new PrevaylerFactory<RootHolder>();
-				factory.configurePrevalenceDirectory(config.getPersistence().getPersistDir());
-				factory.configurePrevalentSystem(new RootHolder());
-				
-				prevayler = factory.create();
-			} else {
-				prevayler = PrevaylerFactory.createTransientPrevayler(new RootHolder());
-			}
+			
+			PrevaylerFactory<RootHolder> factory = new PrevaylerFactory<RootHolder>();
+			factory.configurePrevalenceDirectory(config.getPersistence().getPersistDir());
+			factory.configurePrevalentSystem(new RootHolder());
+			factory.configureTransientMode(!config.getPersistence().isEnabled());
+			
+			Prevayler<RootHolder> prevayler = factory.create();
+			
+//			final Prevayler<RootHolder> prevayler;
+//			if (config.getPersistence().isEnabled()) {
+//				PrevaylerFactory<RootHolder> factory = new PrevaylerFactory<RootHolder>();
+//				factory.configurePrevalenceDirectory(config.getPersistence().getPersistDir());
+//				factory.configurePrevalentSystem(new RootHolder());
+//				factory.configureTransientMode(!config.getPersistence().isEnabled());
+//				prevayler = factory.create();
+//			} else {
+//				prevayler = PrevaylerFactory.createTransientPrevayler(new RootHolder());
+//			}
 			
 			this.prevalerGuard = Utils.getDeclaredFieldValue("_guard", prevayler);
-			this.systemVersionField = Utils.getDeclaredField("_systemVersion", prevalerGuard); 
+			this.systemVersionField = Utils.getDeclaredField("_systemVersion", prevalerGuard);
+			
+			 GenericSnapshotManager<?> snapshotManager = Utils.getDeclaredFieldValue("_snapshotManager", prevayler);
+			 this.prevaylerDirectory = Utils.getDeclaredFieldValue("_directory", snapshotManager);
 			
 			this.rootHolder = prevayler.prevalentSystem();
 			
@@ -130,25 +150,69 @@ public class Chainvayler<T> {
 		}
 	}
 	
-	public long getTransactionCount() throws Exception {
-		if (hazelcastPrevayler != null) 
-			return hazelcastPrevayler.getTransactionCount();
-		else if (systemVersionField != null)
-			return systemVersionField.getLong(prevalerGuard);
+	/** Takes a snapshot of @Chained object graph. 
+	 * Next time the system is restarted, it will first load the snapshot and execute only the transactions later on. */
+	public static void takeSnapshot() throws Exception {
+		Context.getInstance().prevayler.takeSnapshot();
+		// TODO what to do with replication only mode?
+	}
+	
+	/** <p>Deletes redundant files from persistence directory.</p> 
+	 * <p>In Prevayler terms, this means removing journal (transaction) and older snapshot files before the last snapshot.
+	 * <b>Warning</b>, if there are any other files in the persistence directory, they would also be deleted.</p> 
+	 * */
+	public static void deleteRedundantFiles() throws Exception {
+		long lastSnapshot = getLastSnapshotVersion();
+		if (lastSnapshot < 0)
+			return;
+		
+		@SuppressWarnings("unchecked")
+		Set<File> necessaryFiles = getInstance().prevaylerDirectory.necessaryFiles();
+		
+		File persistDir = Utils.getDeclaredFieldValue("_directory", getInstance().prevaylerDirectory); 
+		File[] allFiles = persistDir.listFiles();
+        if (allFiles == null) 
+            throw new IOException("Error reading file list from directory " + persistDir);
+        
+        for (File file : allFiles) {
+        	if (!necessaryFiles.contains(file)) {
+        		System.out.println("deleting: " + file);
+        		Files.delete(file.toPath());
+        	}
+        }
+	}
+	
+	/** Returns the version (transaction count) of the @Chained object graph when last snapshot is taken. 
+	 * returns -1 if no snapshots are taken so far.
+	 * @see {{@link #takeSnapshot()} */
+	public static long getLastSnapshotVersion() throws IOException {
+		File file = getInstance().prevaylerDirectory.latestSnapshot();
+		return (file == null) ? -1 : PrevaylerDirectory.snapshotVersion(file);
+	}
+	
+	public static long getTransactionCount() throws Exception {
+		Chainvayler<?> instance = getInstance();
+		
+		if (instance.hazelcastPrevayler != null) 
+			return instance.hazelcastPrevayler.getTransactionCount();
+		else if (instance.systemVersionField != null)
+			return instance.systemVersionField.getLong(instance.prevalerGuard);
 		else return -1L;
 	}
 	
-	public long getOwnTransactionCount() throws Exception {
-		if (hazelcastPrevayler != null) 
-			return hazelcastPrevayler.getOwnTransactionCount();
-		else if (systemVersionField != null)
-			return systemVersionField.getLong(prevalerGuard);
+	public static long getOwnTransactionCount() throws Exception {
+		Chainvayler<?> instance = getInstance();
+		
+		if (instance.hazelcastPrevayler != null) 
+			return instance.hazelcastPrevayler.getOwnTransactionCount();
+		else if (instance.systemVersionField != null)
+			return instance.systemVersionField.getLong(instance.prevalerGuard);
 		else return -1L;
 	}
 	
-	public IsChained getRoot() {
-		return rootHolder.getRoot();
-	}
+//	public static IsChained getRoot() {
+//		return getInstance().rootHolder.getRoot();
+//	}
 	
 	public static void shutdown() {
 		if (instance != null && instance.hazelcastPrevayler != null)
@@ -168,8 +232,11 @@ public class Chainvayler<T> {
 		return new Chainvayler<T>(clazz, config).create();
 	}
 	
-	public static Chainvayler<?> getInstance() {
+	private static Chainvayler<?> getInstance() {
 		synchronized (Chainvayler.class) {
+			if (instance == null)
+				throw new IllegalStateException("Chainvayler instance not created yet");
+
 			return instance;
 		}
 	}

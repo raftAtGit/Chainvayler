@@ -81,8 +81,11 @@ public interface Peer extends Remote {
 
 		@Override
 		public long getTransactionCount() throws Exception {
-			Chainvayler<?> chainvayler = Chainvayler.getInstance(); 
-			return (chainvayler == null) ? -1 : chainvayler.getTransactionCount();
+			try {
+				return Chainvayler.getTransactionCount();
+			} catch (IllegalStateException e) {
+				return -1;
+			}
 		}
 
 		@Override
@@ -96,8 +99,11 @@ public interface Peer extends Remote {
 		
 		@Override
 		public long getOwnTransactionCount() throws Exception {
-			Chainvayler<?> chainvayler = Chainvayler.getInstance(); 
-			return (chainvayler == null) ? -1 : chainvayler.getOwnTransactionCount();
+			try {
+				return Chainvayler.getOwnTransactionCount();
+			} catch (IllegalStateException e) {
+				return -1;
+			}
 		}
 
 		@Override

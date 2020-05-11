@@ -168,16 +168,18 @@ public class PeerStats {
 				
 				SortedSet<Long> firstKeys = new TreeSet<>(pool.keySet());
 				SortedSet<Long> secondKeys = new TreeSet<>(previousPool.keySet());
-				long firstKey = firstKeys.first();
-				long lastKey = Math.min(firstKeys.last(), secondKeys.last());
+				long firstKey = Math.min(firstKeys.first(), secondKeys.first());
+				long lastKey = Math.max(firstKeys.last(), secondKeys.last());
 				
 				for (long key = firstKey; key <= lastKey; key++) {
 					IsChained first = pool.get(key);
 					IsChained second = previousPool.get(key);
 					
-					if (first.getClass() != second.getClass()) {
-						System.out.printf("classes differ for %s, %s != %s \n", key, first.getClass(), second.getClass());
-					}
+					if ((first == null) ^ (second == null)) 
+						throw new Exception(String.format("only one of the objects is null, key: %s, first: %s, second: %s", key, first, second));
+					
+					if (first == null) 
+						continue;
 				}
 			}
 			
@@ -189,8 +191,8 @@ public class PeerStats {
 			if (previousPool != null) {
 				SortedSet<Long> firstKeys = new TreeSet<>(pool.keySet());
 				SortedSet<Long> secondKeys = new TreeSet<>(previousPool.keySet());
-				long firstKey = firstKeys.first();
-				long lastKey = Math.min(firstKeys.last(), secondKeys.last());
+				long firstKey = Math.min(firstKeys.first(), secondKeys.first());
+				long lastKey = Math.max(firstKeys.last(), secondKeys.last());
 				
 				for (long key = firstKey; key <= lastKey; key++) {
 					IsChained first = pool.get(key);
@@ -216,6 +218,12 @@ public class PeerStats {
 	
 	
 	private static void checkEqual(Bank bankOne, Bank bankTwo) throws Exception {
+		if ((bankOne == null) ^ (bankTwo == null)) 
+			throw new Exception(String.format("only one of the banks is null, first: %s, second: %s", bankOne, bankTwo));
+		
+		if (bankOne == null)
+			return;
+		
 		List<Customer> customersOne = bankOne.getCustomers();
 		List<Customer> customersTwo = bankTwo.getCustomers();
 		
@@ -265,6 +273,12 @@ public class PeerStats {
 	}
 
 	private static void checkEqual(Customer customerOne, Customer customerTwo) throws Exception {
+		if ((customerOne == null) ^ (customerTwo == null)) 
+			throw new Exception(String.format("only one of the customers is null, first: %s, second: %s", customerOne, customerTwo));
+		
+		if (customerOne == null)
+			return;
+		
 		if (customerOne.getId() != customerTwo.getId())
 			throw new Exception("test failed");
 		
@@ -284,6 +298,12 @@ public class PeerStats {
 	}
 	
 	private static void checkEqual(Account accountOne, Account accountTwo) throws Exception {
+		if ((accountOne == null) ^ (accountTwo == null)) 
+			throw new Exception(String.format("only one of the accounts is null, first: %s, second: %s", accountOne, accountTwo));
+		
+		if (accountOne == null)
+			return;
+		
 		if (accountOne.getId() != accountTwo.getId())
 			throw new Exception("test failed");
 		

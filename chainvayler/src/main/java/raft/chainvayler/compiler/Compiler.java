@@ -46,7 +46,6 @@ import javassist.bytecode.annotation.MemberValue;
 import raft.chainvayler.Include;
 import raft.chainvayler.Modification;
 import raft.chainvayler.Chained;
-import raft.chainvayler.Storage;
 import raft.chainvayler.Synch;
 import raft.chainvayler.impl.Context;
 import raft.chainvayler.impl.IsChained;
@@ -368,10 +367,10 @@ public class Compiler {
 	private void injectIsRoot(Node node) throws Exception {
 		CtClass clazz = node.clazz;
 		
-		// TODO better move this functionality to Chainvayler class? 
-		String source = createSource("IsRoot.takeSnapshot.java.txt", contextClass.getName());
-		clazz.addMethod(CtNewMethod.make(source, clazz));
-		System.out.println("added public File takeSnapshot() method to " + clazz.getName());
+//		// TODO better move this functionality to Chainvayler class? 
+//		String source = createSource("IsRoot.takeSnapshot.java.txt", contextClass.getName());
+//		clazz.addMethod(CtNewMethod.make(source, clazz));
+//		System.out.println("added public File takeSnapshot() method to " + clazz.getName());
 	}
 
 	/** inject {@link IsChained} interface and related fields to implement it */
@@ -535,10 +534,9 @@ public class Compiler {
 		
 		List<CtClass> interfaces = new ArrayList<CtClass>(Arrays.asList(clazz.getInterfaces()));
 		for (Iterator<CtClass> i = interfaces.iterator(); i.hasNext();) {
-			CtClass inttf = i.next();
-			if (inttf.getName().equals(IsChained.class.getName()) 
-					|| inttf.getName().equals(RootHolder.class.getName())
-					|| inttf.getName().equals(Storage.class.getName())) {
+			CtClass intf = i.next();
+			if (intf.getName().equals(IsChained.class.getName()) 
+					|| intf.getName().equals(RootHolder.class.getName())) {
 				i.remove();
 			}
 		}

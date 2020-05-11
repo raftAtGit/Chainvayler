@@ -1,6 +1,5 @@
 package raft.chainvayler.samples._bank;
 
-import java.io.File;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,8 +8,6 @@ import java.util.TreeMap;
 
 import raft.chainvayler.Chained;
 import raft.chainvayler.Modification;
-import raft.chainvayler.NotChainedException;
-import raft.chainvayler.Storage;
 import raft.chainvayler.Synch;
 import raft.chainvayler.impl.ConstructorCall;
 import raft.chainvayler.impl.Context;
@@ -24,7 +21,7 @@ import raft.chainvayler.impl.MethodTransactionWithQuery;
  * @author r a f t
  */
 @Chained 
-public class _Bank extends _Company implements Serializable, Storage {
+public class _Bank extends _Company implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -297,14 +294,6 @@ public class _Bank extends _Company implements Serializable, Storage {
 	
 	public _Account getAccount(int id) {
 		return accounts.get(id);
-	}
-
-	@_Injected
-	public final File takeSnapshot() throws Exception {
-		if (! __Chainvayler.isBound())
-		   throw new NotChainedException("no chainvayler context found");
-		
-		return __Chainvayler.getInstance().prevayler.takeSnapshot();
 	}
 
 	public _Bank getSister() {

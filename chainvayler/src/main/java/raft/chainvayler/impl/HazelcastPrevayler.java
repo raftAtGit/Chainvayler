@@ -161,7 +161,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		
 		
 		final long txId = getGlobalTxId();
-		if (txId > 1) {
+		if ((txId > 1) && (txId > lastTxId)) {
 			receiveInitialTransactions(txId, 10);
 		}
 	}
@@ -208,8 +208,9 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			System.out.println("locked global txIdLock");
 			txId = globalTxId.get();
 			if (txId == 0L) {
-				System.out.println("globalTxId is still zero, setting to one");
-				globalTxId.set(1);
+				long willSetTo = lastTxId == 0 ? 1 : lastTxId;
+				System.out.println("globalTxId is still zero, setting to " + willSetTo);
+				globalTxId.set(willSetTo);
 			} else {
 				System.out.printf("globalTxId is not zero (%s), skipping \n", txId);
 			}
