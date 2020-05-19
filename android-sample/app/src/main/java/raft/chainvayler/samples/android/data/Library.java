@@ -19,8 +19,7 @@ public class Library implements Serializable {
     private final Map<Integer, Book> books = new HashMap<>();
     private final Map<Integer, Author> authors = new HashMap<>();
 
-    private int lastBookId = 1;
-    private int lastAuthorId = 1;
+    private int lastId = 1;
 
     private boolean populated = false;
 
@@ -30,7 +29,7 @@ public class Library implements Serializable {
 
     @Modification
     public void addBook(Book book) {
-        book.setId(lastBookId++);
+        book.setId(lastId++);
         books.put(book.getId(), book);
     }
 
@@ -55,7 +54,7 @@ public class Library implements Serializable {
 
     @Modification
     public void addAuthor(Author author) {
-        author.setId(lastAuthorId++);
+        author.setId(lastId++);
         authors.put(author.getId(), author);
     }
 
@@ -100,6 +99,7 @@ public class Library implements Serializable {
     public boolean isPopulated() {
         return populated;
     }
+
     @Modification
     public void setPopulated() {
         populated = true;

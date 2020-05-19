@@ -65,8 +65,8 @@ afterEvaluate {
             it.doLast {
                 javaexec {
                     classpath += javaPath
-                    main = 'raft.chainvayler.compiler.Compiler'          // Chainvaler compiler
-                    args 'raft.chainvayler.samples.android.data.Library' // Root of @Chained graph
+                    main = 'raft.chainvayler.compiler.Compiler'          // Chainvayler compiler
+                    args 'raft.chainvayler.samples.android.data.Library' // Root class of @Chained graph
                     jvmArgs = ['-ea']
                     // enable assertions, generally a good idea especially at build/debug time
                 }
