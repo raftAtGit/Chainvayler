@@ -10,6 +10,7 @@ import java.net.URLDecoder;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,6 +62,10 @@ public class Compiler {
 	// TODO somehow must check if a class is already enhanced
 	
 	private static final boolean DEBUG = false;
+	
+	private static final Set<String> SKIP_PACKAGES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+			"raft.chainvayler.impl"
+			))); 
 	
 	public static void main(String[] args) throws Exception {
 		String rootClassName = args[0];
@@ -184,7 +189,12 @@ public class Compiler {
 		
 		while (!packageQueue.isEmpty()) {
 			String nextPackage = packageQueue.keySet().iterator().next(); 
-			scanPackage(tree, packageQueue.remove(nextPackage));
+			if (SKIP_PACKAGES.contains(nextPackage)) {
+				System.out.println("-skipping package " + nextPackage);
+				packageQueue.remove(nextPackage);
+			} else {
+				scanPackage(tree, packageQueue.remove(nextPackage));
+			}
 		}
 		
 		return tree;
@@ -424,7 +434,7 @@ public class Compiler {
 			System.out.println("added catch to " + constructor.getLongName());
 			
 			// TODO maybe some optimization here
-			// skip if calss this(constructor)?
+			// skip if calls this(constructor)?
 			constructor.insertAfter(createSource("IsChained.init.finally.java.txt", contextClass.getName(), clazz.getName()), true); // as finally
 			System.out.printf("added finally to %s, class: %s \n", constructor.getLongName(), clazz.getName());
 //			System.out.println(createSource("IsChained.init.finally.java.txt", contextClass.getName(), clazz.getName()));
@@ -517,7 +527,7 @@ public class Compiler {
 				System.out.println("removed old field " + clazz.getName() + "." + field.getName());
 			}
 		}
-		// TODO: a serious flaw here: when compiler is re-run on same class and previosly added @Modification and @Synch methods are removed,
+		// TODO: a serious flaw here: when compiler is re-run on same class and previously added @Modification and @Synch methods are removed,
 		// original methods are lost!!    
 		for (CtMethod method : clazz.getDeclaredMethods()) {
 			if (method.getName().startsWith("__chainvayler_")) {
