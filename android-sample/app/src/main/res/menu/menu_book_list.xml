@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_search"
+        android:icon="@drawable/ic_search"
+        android:title="Search"
+        app:showAsAction="always"
+        app:actionViewClass="androidx.appcompat.widget.SearchView" />
+
+    <item
+        android:id="@+id/action_filter_by_genre"
+        android:icon="@drawable/ic_filter"
+        android:title="Filter by genre"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_filter_favorite"
+        android:icon="@drawable/ic_favorite_icon_white"
+        android:title="Filter by favorite"
+        android:checkable="true"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_filter_unread"
+        android:icon="@drawable/ic_read_white"
+        android:title="Filter by unread"
+        android:checkable="true"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/action_add"
+        android:icon="@drawable/ic_add"
+        android:title="New book"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_reset_filters"
+        android:title="Reset filters"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_delete_all"
+        android:title="Delete all"
+        app:showAsAction="never" />
+
+</menu>

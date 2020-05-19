@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="raft.chainvayler.samples.android">
+
+    <application
+        android:name=".LibraryApplication"
+        android:allowBackup="true"
+        android:supportsRtl="false"
+        tools:replace="android:supportsRtl"
+        android:icon="@drawable/ic_app_icon"
+        android:roundIcon="@drawable/ic_app_icon"
+        android:label="Chainvayler Babel Library"
+        android:theme="@style/AppTheme.NoActionBar">
+
+        <activity android:name=".activity.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".activity.AuthorListActivity" />
+        <activity android:name=".activity.BookListActivity" />
+        <activity android:name=".activity.AuthorActivity" />
+        <activity android:name=".activity.BookActivity" />
+        <activity android:name=".activity.InfoActivity"></activity>
+    </application>
+
+</manifest>

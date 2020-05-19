@@ -1,0 +1,2 @@
+rootProject.name='Chainvayler sample'
+include ':app'

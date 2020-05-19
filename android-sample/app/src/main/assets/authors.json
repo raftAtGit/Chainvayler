@@ -1,0 +1,399 @@
+[
+  {
+    "name": "Mustafa Kemal Atatürk",
+    "country": "Turkey",
+    "birth": "19/5/1881",
+    "death": "10/11/1938"
+  },
+  {
+    "name": "Spencer Holst",
+    "country": "USA",
+    "birth": "7/7/1926",
+    "death": "22/11/2001"
+  },
+  {
+    "name":  "Jorge Luis Borges",
+    "country": "Argentine",
+    "birth": "24/8/1899",
+    "death": "14/6/1986"
+  },
+  {
+    "name":  "Agatha Christie",
+    "country": "UK",
+    "birth": "15/9/1890",
+    "death": "12/1/1976"
+  },
+  {
+    "name":  "Stanislaw Lem",
+    "country": "Poland",
+    "birth": "12/9/1921",
+    "death": "27/3/1006"
+  },
+  {
+    "name":  "Jack London",
+    "country": "USA",
+    "birth": "12/1/1876",
+    "death": "22/11/1916"
+  },
+  {
+    "name":  "Ursula K. Le Guin",
+    "country": "USA",
+    "birth": "21/10/1929",
+    "death": "22/1/2018"
+  },
+  {
+    "name":  "George Orwell",
+    "country": "UK",
+    "birth": "25/6/1903",
+    "death": "21/1/1950"
+  },
+  {
+    "name":  "J. M. Barrie",
+    "country": "Scotland",
+    "birth": "9/5/1860",
+    "death": "19/6/1937"
+  },
+  {
+    "name":  "Mark Twain",
+    "country": "USA",
+    "birth": "30/11/1835",
+    "death": "21/4/1910"
+  },
+  {
+    "name":  "Jerzy Kosinski",
+    "country": "Poland",
+    "birth": "14/6/1933",
+    "death": "3/5/1991"
+  },
+  {
+    "name":  "Charles Bukowski",
+    "country": "USA",
+    "birth": "16/8/1920",
+    "death": "9/3/1994"
+  },
+  {
+    "name":  "Iceberg Slim",
+    "country": "USA",
+    "birth": "4/8/1918",
+    "death": "30/4/1992"
+  },
+  {
+    "name":  "Metin Kaçan",
+    "country": "Turkey",
+    "birth": "15/11/1961",
+    "death": "6/1/2013"
+  },
+  {
+    "name":  "Robert E. Howard",
+    "country": "USA",
+    "birth": "22/1/1906",
+    "death": "11/6/1936"
+  },
+  {
+    "name":  "Franz Kafka",
+    "country": "Bohemia",
+    "birth": "3/7/1883",
+    "death": "3/6/1924"
+  },
+  {
+    "name":  "Boris Vian",
+    "country": "France",
+    "birth": "10/3/1920",
+    "death": "23/6/1959"
+  },
+  {
+    "name":  "William Golding",
+    "country": "UK",
+    "birth": "19/9/1911",
+    "death": "19/6/1993"
+  },
+  {
+    "name":  "Thomas Harris",
+    "country": "USA",
+    "birth": "22/9/1940"
+  },
+  {
+    "name":  "Nikos Kazantzakis",
+    "country": "Greece",
+    "birth": "18/2/1883",
+    "death": "26/10/1957"
+  },
+  {
+    "name":  "Ingvar Ambjørnsen",
+    "country": "Norway",
+    "birth": "20/5/1956"
+  },
+  {
+    "name": "Umberto Eco",
+    "country": "Italy",
+    "birth": "5/1/1932",
+    "death": "19/2/2016"
+  },
+
+  {
+    "name":  "Hermann Hesse",
+    "country": "Switzerland",
+    "birth": "2/7/1877",
+    "death": "9/8/1962"
+  },
+  {
+    "name":  "David Mitchell",
+    "country": "UK",
+    "birth": "14/7/1974"
+  },
+  {
+    "name":  "Douglas Adams",
+    "country": "UK",
+    "birth": "11/3/1952",
+    "death": "11/5/2001"
+  },
+  {
+    "name":  "Thomas Moore",
+    "country": "USA",
+    "birth": "8/10/1940"
+  },
+  {
+    "name":  "Jean-Paul Sartre",
+    "country": "France",
+    "birth": "21/6/1905",
+    "death": "15/4/1980"
+  },
+  {
+    "name":  "Milan Kundera",
+    "country": "Czechoslovakia",
+    "birth": "1/4/1929"
+  },
+  {
+    "name":  "Gabriel Garcia Marquez",
+    "country": "Colombia",
+    "birth": "6/3/1927",
+    "death": "17/4/2014"
+  },
+  {
+    "name":  "Dave Eggers",
+    "country": "USA",
+    "birth": "12/3/1970"
+  },
+  {
+    "name":  "Ian McEwan",
+    "country": "UK",
+    "birth": "21/6/1948"
+  },
+  {
+    "name":  "Guus Kuijer",
+    "country": "Netherlands",
+    "birth": "1/8/1942"
+  },
+  {
+    "name":  "Hunter S. Thompson",
+    "country": "USA",
+    "birth": "18/7/1937",
+    "death": "20/2/2005"
+  },
+  {
+    "name":  "Lewis Carroll",
+    "country": "UK",
+    "birth": "27/1/1832",
+    "death": "14/1/1898"
+  },
+  {
+    "name":  "Astrid Lindgren",
+    "country": "Sweden",
+    "birth": "14/11/1907",
+    "death": "28/1/2002"
+  },
+  {
+    "name":  "James Baldwin",
+    "country": "USA",
+    "birth": "2/8/1924",
+    "death": "1/12/1987"
+  },
+  {
+    "name":  "Hector Malot",
+    "country": "France",
+    "birth": "20/5/1830",
+    "death": "18/7/1907"
+  },
+  {
+    "name":  "Jonas Jonasson",
+    "country": "Sweden",
+    "birth": "6/7/1961"
+  },
+  {
+    "name":  "Harper Lee",
+    "country": "USA",
+    "birth": "28/4/1926",
+    "death": "19/2/2016"
+  },
+  {
+    "name":  "Antoine de Saint-Exupéry",
+    "country": "France",
+    "birth": "29/6/1900",
+    "death": "31/7/1944"
+  },
+  {
+    "name":  "Jay McInerney",
+    "country": "USA",
+    "birth": "13/5/1955"
+  },
+  {
+    "name":  "Khaled Hosseini",
+    "country": "Afghanistan",
+    "birth": "4/3/1965"
+  },
+  {
+    "name":  "Anne Frank",
+    "country": "Germany",
+    "birth": "12/6/1929",
+    "death": "01/02/1944"
+  },
+  {
+    "name":  "Albert Camus",
+    "country": "France",
+    "birth": "7/11/1913",
+    "death": "4/1/1960"
+  },
+  {
+    "name":  "Peter Buwalda",
+    "country": "Netherlands",
+    "birth": "30/12/1971"
+  },
+  {
+    "name":  "Victor Hugo",
+    "country": "France",
+    "birth": "26/2/1802",
+    "death": "22/5/1885"
+  },
+  {
+    "name":  "John Williams",
+    "country": "USA",
+    "birth": "29/8/1922",
+    "death": "3/3/1994"
+  },
+
+  {
+    "name":  "Stephen King",
+    "country": "USA",
+    "birth": "21/9/1947"
+  },
+  {
+    "name":  "Joseph Conrad",
+    "country": "Poland",
+    "birth": "3/12/1857",
+    "death": "3/8/1924"
+  },
+  {
+    "name":"Aldous Huxley",
+    "country": "UK",
+    "birth": "26/7/1894",
+    "death": "22/11/1963"
+  },
+  {
+    "name":"Frank Herbert",
+    "country": "USA",
+    "birth": "8/10/1920",
+    "death": "11/2/1986"
+  },
+  {
+    "name":"Philip K. Dick",
+    "country": "USA",
+    "birth": "16/12/1928",
+    "death": "2/3/1982"
+  },
+  {
+    "name":"Robert M. Pirsig",
+    "country": "USA",
+    "birth": "6/9/1928",
+    "death": "24/4/2017"
+  },
+  {
+    "name":"Oğuz Atay",
+    "country": "Turkey",
+    "birth": "12/10/1934",
+    "death": "13/12/1977"
+  },
+  {
+    "name":"Yusuf Atılgan",
+    "country": "Turkey",
+    "birth": "27/6/1921",
+    "death": "9/10/1989"
+  },
+  {
+    "name":"Arkady and Boris Strugatsky",
+    "country": "Russia",
+    "birth": "14/4/1933",
+    "death": "19/11/2012"
+  },
+
+  {
+    "name":"Fyodor Dostoevsky",
+    "country": "Russia",
+    "birth": "11/11/1821",
+    "death": "9/2/1881"
+  },
+  {
+    "name":"Ivan Turgenev",
+    "country": "Russia",
+    "birth": "9/11/1818",
+    "death": "3/9/1883"
+  },
+  {
+    "name":"J.M. Coetzee",
+    "country": "South Africa",
+    "birth": "9/2/1940"
+  },
+  {
+    "name":"Emile Ajar",
+    "country": "France",
+    "birth": "8/5/1914",
+    "death": "2/12/1980"
+  },
+  {
+    "name":"Yaşar Kemal",
+    "country": "Turkey",
+    "birth": "6/10/1923",
+    "death": "28/2/2015"
+  },
+  {
+    "name":"J. D. Salinger",
+    "country": "USA",
+    "birth": "1/1/1919",
+    "death": "27/1/2010"
+  },
+  {
+    "name":"Alfred Bester",
+    "country": "USA",
+    "birth": "18/12/1913",
+    "death": "30/9/1987"
+  },
+  {
+    "name":"Ahmed Hamdi Tanpınar",
+    "country": "Turkey",
+    "birth": "23/6/2001",
+    "death": "24/1/1962"
+  },
+  {
+    "name":"Henri Charriere",
+    "country": "France",
+    "birth": "16/11/1906",
+    "death": "29/7/1973"
+  },
+  {
+    "name":"Jean Genet",
+    "country": "France",
+    "birth": "19/12/1910",
+    "death": "15/4/1986"
+  },
+  {
+    "name":"Cervantes",
+    "country": "Spain",
+    "birth": "29/9/1547",
+    "death": "22/4/1616"
+  },
+  {
+    "name":"Jack Kerouac",
+    "country": "USA",
+    "birth": "12/3/1922",
+    "death": "21/10/1969"
+  }
+]

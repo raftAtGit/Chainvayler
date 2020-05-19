@@ -1,0 +1,308 @@
+[
+  {
+    "name": "The Speech",
+    "author": "Mustafa Kemal Atatürk",
+    "genres": ["History", "Politics"]
+  },
+  {
+    "name": "The Language of Cats and Other Stories",
+    "author": "Spencer Holst",
+    "genres": ["Short story", "Fiction"]
+  },
+  { "name": "The Book of Sand",
+    "author": "Jorge Luis Borges",
+    "genres": ["Short story", "Science fiction", "Horror", "Fantasy"]
+  },
+  { "name": "Ten Little Niggers",
+    "author": "Agatha Christie",
+    "genres": ["Novel", "Mystery", "Crime", "Psychological thriller", "Horror"]
+  },
+  { "name": "Solaris",
+    "author": "Stanislaw Lem",
+    "genres": ["Novel", "Science fiction"]
+  },
+  { "name": "The Call of the Wild",
+    "author": "Jack London",
+    "genres": ["Novel", "Adventure fiction"]
+  },
+  { "name": "The Left Hand of Darkness",
+    "author": "Ursula K. Le Guin",
+    "genres": ["Novel", "Science fiction"]
+  },
+  { "name": "The Earthsea Trilogy",
+    "author": "Ursula K. Le Guin",
+    "genres": ["Novel", "Fantasy", "Fiction", "Bildungsroman"]
+  },
+  { "name": "Nineteen Eighty-Four",
+    "author": "George Orwell",
+    "genres": ["Novel", "Dystopian", "Political fiction", "Social science fiction"]
+  },
+  { "name": "Peter Pan",
+    "author": "J. M. Barrie",
+    "genres": ["Novel", "Fantasy"]
+  },
+  { "name": "The Adventures of Tom Sawyer",
+    "author": "Mark Twain",
+    "genres": ["Novel", "Bildungsroman", "Picaresque novel", "Satire", "Folk", "Children's literature"]
+  },
+  { "name": "Being There",
+    "author": "Jerzy Kosinski",
+    "genres": ["Novel", "Fiction", "Humour"]
+  },
+  { "name": "The Painted Bird",
+    "author": "Jerzy Kosinski",
+    "genres": ["Novel", "War novel", "Autobiography"]
+  },
+  { "name": "Cockpit",
+    "author": "Jerzy Kosinski",
+    "genres": ["Novel", "Fiction", "Spy fiction"]
+  },
+  { "name": "Women",
+    "author": "Charles Bukowski",
+    "genres": ["Novel", "Fiction", "Autobiography"]
+  },
+  { "name": "Pimp: The Story of My Life",
+    "author": "Iceberg Slim",
+    "genres": ["Nonfiction", "Autobiography"]
+  },
+  { "name": "Cholera Blues",
+    "author": "Metin Kaçan",
+    "genres": ["Novel", "Fiction", "Cult classic"]
+  },
+  { "name": "The Coming of Conan the Cimmerian",
+    "author": "Robert E. Howard",
+    "genres": ["Novel", "Fantasy Fiction", "Sword and sorcery", "Adventure fiction"]
+  },
+  { "name": "Metamorphosis",
+    "author": "Franz Kafka",
+    "genres": ["Novel", "Fantasy Fiction", "Absurdist fiction"]
+  },
+  { "name": "I Shall Spit on Your Graves",
+    "author": "Boris Vian",
+    "genres": ["Novel", "Mystery"]
+  },
+  { "name": "Lord of the Flies",
+    "author": "William Golding",
+    "genres": ["Novel", "Allegory", "Young adult fiction", "Psychological fiction"]
+  },
+  { "name": "The Silence of the Lambs",
+    "author": "Thomas Harris",
+    "genres": ["Novel", "Mystery", "Thriller", "Horror fiction", "Psychological horror"]
+  },
+  { "name": "Zorba the Greek",
+    "author": "Nikos Kazantzakis",
+    "genres": ["Novel", "Fiction"]
+  },
+  { "name": "White Niggers",
+    "author": "Ingvar Ambjørnsen",
+    "genres": ["Novel", "Fiction", "Cult classic"]
+  },
+  {
+    "name": "The Name of the Rose",
+    "author": "Umberto Eco",
+    "genres": ["Novel", "Historical mystery"]
+  },
+
+  { "name": "Demian: The Story of Emil Sinclair's Youth",
+    "author": "Hermann Hesse",
+    "genres": ["Novel", "Bildungsroman", "Fiction"]
+  },
+  { "name": "Cloud Atlas",
+    "author": "David Mitchell",
+    "genres": ["Novel", "Science Fiction", "Drama", "Fantasy fiction"]
+  },
+  { "name": "Hitchhiker's Guide to Galaxy",
+    "author": "Douglas Adams",
+    "genres": ["Novel", "Science fiction", "Humour", "Absurdist fiction"]
+  },
+  { "name": "Utopia",
+    "author": "Thomas Moore",
+    "genres": ["Fiction", "Satire"]
+  },
+  { "name": "The Chips Are Down",
+    "author": "Jean-Paul Sartre",
+    "genres": ["Screenplay", "Fiction"]
+  },
+  { "name": "The Unbearable Lightness of Being",
+    "author": "Milan Kundera",
+    "genres": ["Novel", "Romance novel", "Magical realism", "Philosophical fiction"]
+  },
+  { "name": "One Hundred Years of Solitude",
+    "author": "Gabriel Garcia Marquez",
+    "genres": ["Novel", "Magical realism", "Fantasy", "High fantasy", "Family saga", "Epic fiction"]
+  },
+  { "name": "What is the What",
+    "author": "Dave Eggers",
+    "genres": ["Memoir", "Historical fiction", "Biographical fiction"]
+  },
+  { "name": "The Cement Garden",
+    "author": "Ian McEwan",
+    "genres": ["Novel", "Psychological fiction", "Domestic fiction"]
+  },
+  { "name": "The Bible for Unbelievers",
+    "author": "Guus Kuijer",
+    "genres": ["Alternate history"]
+  },
+  { "name": "Fear and Loathing in Las Vegas",
+    "author": "Hunter S. Thompson",
+    "genres": ["Novel", "Biography", "Autobiography", "Roman à clef", "Fictional autobiography"]
+  },
+  { "name": "Alice's Adventures in Wonderland",
+    "author": "Lewis Carroll",
+    "genres": ["Novel", "Children's literature", "Fantasy", "Literary nonsense", "Fantasy fiction", "Absurdist fiction", "Fantastique"]
+  },
+  { "name": "Pippi Longstocking",
+    "author": "Astrid Lindgren",
+    "genres": ["Humour", "Fiction", "Children's literature"]
+  },
+  { "name": "If Beale Street Could Talk",
+    "author": "James Baldwin",
+    "genres": ["Novel", "Fiction", "Romance novel"]
+  },
+  { "name": "Alone in the World",
+    "author": "Hector Malot",
+    "genres": ["Novel", "Fiction"]
+  },
+  { "name": "The Hundred-Year Old Man Who Climbed Out the Window and Disappeared",
+    "author": "Jonas Jonasson",
+    "genres": ["Novel", "Humour", "Fiction"]
+  },
+  { "name": "To Kill a Mockingbird",
+    "author": "Harper Lee",
+    "genres": ["Novel", "Bildungsroman", "Southern gothic", "Thriller", "Domestic fiction", "Legal story"]
+  },
+  { "name": "Little Prince",
+    "author": "Antoine de Saint-Exupéry",
+    "genres": ["Fable", "Children's literature", "Novella", "Speculative fiction"]
+  },
+  { "name": "Bright Lights, Big City",
+    "author": "Jay McInerney",
+    "genres": ["Novel", "Fiction", "Dark comedy"]
+  },
+  { "name": "The Kite Runner",
+    "author": "Khaled Hosseini",
+    "genres": ["Novel", "Drama", "Bildungsroman", "Historical fiction"]
+  },
+  { "name": "The Diary of a Young Girl",
+    "author": "Anne Frank",
+    "genres": ["Autobiography", "Biography"]
+  },
+  { "name": "The Stranger",
+    "author": "Albert Camus",
+    "genres": ["Novel", "Crime fiction", "Reference work", "Philosophical fiction", "Absurdist fiction", "Existential fiction"]
+  },
+  { "name": "Bonita Avenue",
+    "author": "Peter Buwalda",
+    "genres": ["Novel", "Domestic fiction"]
+  },
+  { "name": "Animal Farm",
+    "author": "George Orwell",
+    "genres": ["Novel", "Allegory", "Satire", "Children's literature", "Roman à clef", "Political satire", "Political fiction", "Dystopian fiction"]
+  },
+  { "name": "The Hunchback of Notre-Dame",
+    "author": "Victor Hugo",
+    "genres": ["Novel", "Romanticism", "Gothic fiction"]
+  },
+  { "name": "Stoner",
+    "author": "John Williams",
+    "genres": ["Novel", "Psychological fiction", "Domestic fiction"]
+  },
+
+  { "name": "The Shining",
+    "author": "Stephen King",
+    "genres": ["Novel", "Horror fiction", "Gothic fiction", "Psychological horror", "Occult Fiction"]
+  },
+  { "name": "The Heart of Darkness",
+    "author": "Joseph Conrad",
+    "genres": ["Novel", "Fiction", "Roman à clef"]
+  },
+  { "name": "Brave New World",
+    "author": "Aldous Huxley",
+    "genres": ["Novel", "Science fiction", "Dystopian fiction"]
+  },
+  { "name": "Dune",
+    "author": "Frank Herbert",
+    "genres": ["Novel", "Science fiction"]
+  },
+  { "name": "Do Androids Dream of Electric Sheep?",
+    "author": "Philip K. Dick",
+    "genres": ["Novel", "Science fiction", "Philosophical fiction", "Dystopian fiction"]
+  },
+  { "name": "The Man In The High Castle",
+    "author": "Philip K. Dick",
+    "genres": ["Novel", "Alternate history", "Science fiction", "Fantasy fiction", "Political fiction", "Dystopian fiction"]
+  },
+  { "name": "Vulcan's Hammer",
+    "author": "Philip K. Dick",
+    "genres": ["Novel", "Science fiction", "Dystopian fiction"]
+  },
+  { "name": "Zen and the Art of Motorcycle Maintenance",
+    "author": "Robert M. Pirsig",
+    "genres": ["Biography", "Travel literature", "Philosophical fiction", "Autobiographical novel"]
+  },
+  { "name": "The Disconnected",
+    "author": "Oğuz Atay",
+    "genres": ["Novel", "Stream of consciousness"]
+  },
+  { "name": "Motherland Hotel",
+    "author": "Yusuf Atılgan",
+    "genres": ["Novel", "Psychological fiction"]
+  },
+  { "name": "Roadside Picnic",
+    "author": "Arkady and Boris Strugatsky",
+    "genres": ["Novel", "Science fiction"]
+  },
+
+  { "name": "The Idiot",
+    "author": "Fyodor Dostoevsky",
+    "genres": ["Novel", "Philosophical fiction"]
+  },
+  { "name": "Fathers and Sons",
+    "author": "Ivan Turgenev",
+    "genres": ["Novel", "Romance", "Philosophical fiction", "Political fiction"]
+  },
+  { "name": "Waiting for the Barbarians",
+    "author": "J.M. Coetzee",
+    "genres": ["Novel", "Fiction"]
+  },
+  { "name": "The Life Before Us",
+    "author": "Emile Ajar",
+    "genres": ["Novel", "Fiction"]
+  },
+  { "name": "Memed, My Hawk",
+    "author": "Yaşar Kemal",
+    "genres": ["Novel", "Fiction"]
+  },
+  { "name": "Franny and Zooey",
+    "author": "J. D. Salinger",
+    "genres": ["Short story", "Novel", "Fiction"]
+  },
+  { "name": "Tiger Tiger",
+    "author": "Alfred Bester",
+    "genres": ["Novel", "Science Fiction"]
+  },
+  { "name": "The Time Regulation Institute",
+    "author": "Ahmed Hamdi Tanpınar",
+    "genres": ["Novel", "Literary fiction"]
+  },
+  { "name": "Papillon",
+    "author": "Henri Charriere",
+    "genres": ["Biography", "Autobiographical novel", "Fictional autobiography"]
+  },
+  { "name": "Miracle of the Rose",
+    "author": "Jean Genet",
+    "genres": ["Autobiographical novel", "Fictional autobiography"]
+  },
+  { "name": "Don Quixote",
+    "author": "Cervantes",
+    "genres": ["Novel", "Parody", "Satire", "Farce", "Psychological fiction"]
+  },
+  { "name": "God’s Pauper",
+    "author": "Nikos Kazantzakis",
+    "genres": ["Novel", "Fiction"]
+  },
+  { "name": "On the Road",
+    "author": "Jack Kerouac",
+    "genres": ["Novel", "Fiction", "Roman à clef", "Autobiographical novel"]
+  }
+]

@@ -1,0 +1,76 @@
+apply plugin: 'com.android.application'
+
+repositories {
+    jcenter()
+    mavenLocal()
+}
+
+android {
+    compileSdkVersion 29
+    buildToolsVersion "29.0.3"
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        applicationId "raft.chainvayler.samples.android"
+        minSdkVersion 24
+        targetSdkVersion 29
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+
+    implementation 'androidx.appcompat:appcompat:1.0.2'
+    implementation 'androidx.constraintlayout:constraintlayout:1.1.3'
+    implementation 'androidx.recyclerview:recyclerview:1.0.0'
+
+    // nice library to handle swipes
+    implementation 'ru.rambler.android:swipe-layout:1.1.0'
+
+    implementation 'raft.chainvayler:chainvayler:0.1'
+    implementation 'org.prevayler:prevayler-core:2.6'
+    implementation 'org.javassist:javassist:3.26.0-GA'
+
+    implementation 'com.google.android.material:material:1.1.0'
+    implementation 'androidx.navigation:navigation-fragment:2.0.0'
+    implementation 'androidx.navigation:navigation-ui:2.0.0'
+    testImplementation 'junit:junit:4.12'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.2.0'
+}
+
+afterEvaluate {
+    android.applicationVariants.each { variant ->
+        variant.javaCompileProvider.configure {
+            def javaPath = it.classpath + files(it.destinationDir)
+
+            // below line is required only if Android specific classes (Log etc.) are used inside @Chained classes
+            // javaPath += files(android.sdkDirectory.absolutePath + '/platforms/' + android.compileSdkVersion + '/android.jar')
+
+            it.doLast {
+                javaexec {
+                    classpath += javaPath
+                    main = 'raft.chainvayler.compiler.Compiler'          // Chainvaler compiler
+                    args 'raft.chainvayler.samples.android.data.Library' // Root of @Chained graph
+                    jvmArgs = ['-ea']
+                    // enable assertions, generally a good idea especially at build/debug time
+                }
+            }
+        }
+    }
+}
