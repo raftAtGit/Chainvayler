@@ -3,8 +3,14 @@
 # https://docs.microsoft.com/azure/devops/pipelines/languages/docker
 
 trigger:
-- master
-- feature/*
+  branches:
+    include:
+    - master
+    - feature/*
+  paths:
+    include:
+    - chainvayler/*
+    - bank-sample/*
 
 resources:
 - repo: self
