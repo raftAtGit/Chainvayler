@@ -14,8 +14,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
@@ -72,8 +70,6 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	private final IAtomicLong globalTxId;
 	private final ITopic<TransactionTimestamp> transactionsTopic;
-//	private final IMap<Long, TransactionTimestamp> globalTxIMap;
-//	private final ReplicatedMap<Long, TransactionTimestamp> globalTxRepliatedMap;
 	private final Map<Long, TransactionTimestamp> localTxMap = Collections.synchronizedMap(new HashMap<>());
 	private long lastTxId = 0;
 	private long ownTxCount = 0;
@@ -85,8 +81,6 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	private final int txIdReserveSize;
 	private final Queue<Long> reservedTxIds = new LinkedList<>();
-	
-	private Executor assertionExecutor = null;
 	
 	public HazelcastPrevayler(PrevaylerImpl<RootHolder> prevayler, raft.chainvayler.Config.Replication replicationConfig) throws Exception {
 		this.prevayler = prevayler;
@@ -116,8 +110,6 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		System.out.println("Hazelcast is ready");
 		
 		System.out.println("assertionsEnabled: " + assertionsEnabled);
-		if (assertionsEnabled)
-			assertionExecutor = Executors.newCachedThreadPool();
 		
 		this.globalTxId = getGlobalTxIdWithRetries(10);
 		
@@ -149,6 +141,10 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			.setReadBackupData(true)
 			.setBackupCount(replicationConfig.getImapBackupCount())
 			.setAsyncBackupCount(replicationConfig.getImapAsyncBackupCount());
+		
+		// Reliable ITopic uses the RingBuffer with the same name "transactions" 
+		hazelcastConfig.getRingbufferConfig("transactions")
+			.setCapacity(replicationConfig.getReliableTopicCapacity());
 		
 		if (replicationConfig.isKubernetes()) {
 			if (replicationConfig.getKubernetesServiceName() == null)
@@ -616,6 +612,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 					// we cannot commit in this thread.
 					// if we are not fast enough, Hazelcast terminates topic listener
 					// notifying will make commitCheckerThread commit transactions
+					
 					// TODO maybe even waiting for the lock is too much?
 					synchronized (lastTxIdLock) {
 						lastTxIdLock.notifyAll();

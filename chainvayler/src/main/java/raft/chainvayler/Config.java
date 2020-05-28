@@ -62,6 +62,8 @@ public class Config {
 		private boolean kubernetes = false;
 		private String kubernetesServiceName;
 		
+		private int reliableTopicCapacity = 100000;
+		
 		private int imapBackupCount = 0;
 		private int imapAsyncBackupCount = 2;
 		
@@ -100,6 +102,15 @@ public class Config {
 
 		public Replication setKubernetesServiceName(String kubernetesServiceName) {
 			this.kubernetesServiceName = kubernetesServiceName;
+			return this;
+		}
+		
+		public int getReliableTopicCapacity() {
+			return reliableTopicCapacity;
+		}
+
+		public Replication setReliableTopicCapacity(int reliableTopicCapacity) {
+			this.reliableTopicCapacity = reliableTopicCapacity;
 			return this;
 		}
 
