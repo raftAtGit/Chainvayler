@@ -36,6 +36,8 @@ public class Library implements Serializable {
     @Modification
     public void removeBook(Book book) {
         books.remove(book.getId());
+        if (book.getAuthor() != null)
+            book.getAuthor().removeBook(book);
     }
 
     public Collection<Book> getBooks() {
