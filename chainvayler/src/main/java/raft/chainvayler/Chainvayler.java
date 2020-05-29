@@ -1,7 +1,6 @@
 package raft.chainvayler;
 
 import java.io.File;
-import java.io.IOError;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -36,13 +35,9 @@ import raft.chainvayler.impl.Utils;
  * {@link Chainvayler#create(Class)} should be called with the same root class or with an instance of it.  
  *  This suggests there can be only one root instance per JVM (indeed per {@link ClassLoader}).</p>
  *  
- *  <p>Chainvayler creates {@link Prevayler} with default settings and 
- *  <i>./persist/root.class.qualified.Name</i> directory as prevalance directory. These can be 
- *  configured by passing a {@link PrevaylerFactory} instance to Chainvayler before calling {@link #create()}.</p>
  * 
  * @see Chained
  * @see Modification
- * @see PrevaylerFactory
  * 
  * @author r a f t
  */
@@ -124,8 +119,8 @@ public class Chainvayler<T> {
 			this.prevalerGuard = Utils.getDeclaredFieldValue("_guard", prevayler);
 			this.systemVersionField = Utils.getDeclaredField("_systemVersion", prevalerGuard);
 			
-			 GenericSnapshotManager<?> snapshotManager = Utils.getDeclaredFieldValue("_snapshotManager", prevayler);
-			 this.prevaylerDirectory = Utils.getDeclaredFieldValue("_directory", snapshotManager);
+			GenericSnapshotManager<?> snapshotManager = Utils.getDeclaredFieldValue("_snapshotManager", prevayler);
+			this.prevaylerDirectory = Utils.getDeclaredFieldValue("_directory", snapshotManager);
 			
 			this.rootHolder = prevayler.prevalentSystem();
 			

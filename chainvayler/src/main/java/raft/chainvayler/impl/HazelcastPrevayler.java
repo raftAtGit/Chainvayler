@@ -4,7 +4,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -13,7 +15,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.SortedSet;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
@@ -41,22 +46,31 @@ import com.hazelcast.config.Config;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.cp.IAtomicLong;
+import com.hazelcast.cp.IAtomicReference;
 import com.hazelcast.spi.exception.RetryableHazelcastException;
 import com.hazelcast.topic.ITopic;
 import com.hazelcast.topic.Message;
 import com.hazelcast.topic.MessageListener;
 
+import raft.chainvayler.Chainvayler;
 
+
+/**
+ * Hazelcast based replication layer over a PrevaylerImpl.   
+ * 
+ * @author  hakan eryargi (r a f t)
+ */
 public class HazelcastPrevayler implements Prevayler<RootHolder> {
 
 	private static boolean assertionsEnabled = false;
-	
 	static {
 		assert assertionsEnabled = true;		
 	}
 	
 	private static final boolean PRINT_POOL = false; 
-	private static final boolean SAVE_POOL = false; 
+	private static final boolean SAVE_POOL = false;
+	
+	private static final long MINUTE = 60 * 1000; // milliseconds
 	
 	private final Prevayler<RootHolder> prevayler;
 	private final TransactionPublisher publisher;
@@ -70,12 +84,17 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	private final IAtomicLong globalTxId;
 	private final ITopic<TransactionTimestamp> transactionsTopic;
+	private final ITopic<Request> requestsTopic;
+	
 	private final Map<Long, TransactionTimestamp> localTxMap = Collections.synchronizedMap(new HashMap<>());
+	private SortedSet<Long> localTxIds = Collections.synchronizedSortedSet(new TreeSet<>());
+	
 	private long lastTxId = 0;
 	private long ownTxCount = 0;
-	private SortedSet<Long> localTxIds = Collections.synchronizedSortedSet(new TreeSet<>());
+	
 	private final Object lastTxIdLock = new Object();
 	private final Object commitLock = new Object();
+	
 	private boolean initialized = false;
 	private boolean stopped = false;
 	
@@ -115,12 +134,17 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		
 		this.transactionsTopic = hazelcast.getReliableTopic("transactions");
 		transactionsTopic.addMessageListener(transactionsTopicListener);
-		System.out.println("got transactions ReliableTopic");
+		System.out.println("got ReliableTopic for transactions");
+		
+		this.requestsTopic = hazelcast.getReliableTopic("requests");
+		System.out.println("got ReliableTopic for requests");
 		
 		final long txId = getGlobalTxId();
 		if ((txId > 1) && (txId > lastTxId)) {
 			receiveInitialTransactions(txId, 10);
 		}
+
+		requestsTopic.addMessageListener(requestsTopicListener);
 	}
 	
 	public void start() {
@@ -201,94 +225,67 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		}
 		return globalTxId;
 	}
-	private void receiveInitialTransactions(long txId, int maxRetries) throws Exception {
-		// TODO
-		System.out.println("//TODO: Implement me, receiveInitialTransactions " + txId);
-	}
 	
-//	private void receiveInitialTransactionsFromReplicatedMap(long txId, int maxRetries) throws Exception {
-//		// the very first tx, #1, is always local (InitRootTransaction) and never stored at Hazelcast
-//		// so will request txs either starting from 2 or local lastTxId+1, whichever bigger
-//		long startTx = Math.max(2, lastTxId + 1);
-//		System.out.printf("requesting initial transactions [%s - %s] \n", startTx, txId);
-//		
-//		Set<Long> keys = new HashSet<>();
-//		for (long l = startTx; l <= txId; l++)
-//			keys.add(l);
-//		
-//		Set<Long> keySet = new HashSet<>(globalTxRepliatedMap.keySet());
-//		
-//		int retryCount = 0;
-//		
-//		while (!keySet.containsAll(keys) && retryCount < maxRetries) {
-//			Set<Long> remainingKeys = new HashSet<>(keySet);
-//			remainingKeys.removeAll(keys);
-//			
-//			System.out.printf("retrieved %s of %s initial transactions, requesting remaining %s: %s \n", 
-//					keySet.size(), keys.size(), remainingKeys.size(), remainingKeys);
-//
-//			// Hazelcast eventually returns all keys, but not immediately, so wait a bit.. 
-//			Thread.sleep(500);
-//			
-//			keySet = new HashSet<>(globalTxRepliatedMap.keySet());
-//			retryCount++;
-//		}
-//		
-//		if (!keySet.containsAll(keys)) {
-//			System.out.printf("couldnt received all initial transactions after %s attempts, giving up \n", retryCount);
-//			throw new IllegalStateException("couldnt received all initial transactions");
-//		}
-//		
-//		System.out.printf("received all initial transactions [%s - %s], count: %s \n", startTx, txId, keys.size());
-//	}
-//	
-//	private void receiveInitialTransactionsFromIMap(long txId, int maxRetries) throws Exception {
-//		// the very first tx, #1, is always local (InitRootTransaction) and never stored at Hazelcast
-//		// so will request txs either starting from 2 or local lastTxId+1, whichever bigger
-//		long startTx = Math.max(2, lastTxId + 1);
-//		System.out.printf("requesting initial transactions [%s - %s] \n", startTx, txId);
-//		
-//		Set<Long> keys = new HashSet<>();
-//		for (long l = startTx; l <= txId; l++)
-//			keys.add(l);
-//		
-//		Map<Long, TransactionTimestamp> receivedTxs = globalTxIMap.getAll(keys);
-//		// returned Map is unmodifiable, so create another copy
-//		receivedTxs = new HashMap<>(receivedTxs);
-//		
-//		int retryCount = 0;
-//		
-//		// looks like for large numbers of keys, Hazelcast dont return all values
-//		// so we iterate with batches for remaining values
-//		while (!receivedTxs.keySet().containsAll(keys) && retryCount < maxRetries) {
-//			Set<Long> remainingKeys = new HashSet<>(keys);
-//			remainingKeys.removeAll(receivedTxs.keySet());
-//			System.out.printf("retrieved %s of %s initial transactions, requesting remaining %s: %s \n", 
-//					receivedTxs.size(), keys.size(), remainingKeys.size(), remainingKeys);
-//			
-//			// Hazelcast eventually returns all keys, but not immediately, so wait a bit.. 
-//			// NOT true indeed, sometimes some keys are missing 
-//			Thread.sleep(500);
-//			
-//			Map<Long, TransactionTimestamp> newBatch = globalTxIMap.getAll(remainingKeys);
-//			System.out.printf("retrieved %s more initial transactions \n", newBatch.size());
-//			
-//			receivedTxs.putAll(newBatch);
-//			retryCount++;
-//		}
-//		if (!receivedTxs.keySet().containsAll(keys)) {
-//			System.out.printf("couldnt received all initial transactions after %s attempts, giving up \n", retryCount);
-//			throw new IllegalStateException("couldnt received all initial transactions");
-//		}
-//		
-//		System.out.printf("received all initial transactions [%s - %s], count: %s \n", startTx, txId, receivedTxs.size());
-//		
-//		if (USE_LOCAL_TX_MAP) {
-//			localTxMap.putAll(receivedTxs);
-//			System.out.printf("stored all initial transactions in local map [%s - %s], count: %s \n", startTx, txId, receivedTxs.size());
-//		}
-//		
-//	}
+	private void receiveInitialTransactions(long txId, int maxRetries) throws Exception {
+		
+		// the very first TX, #1, is always local (InitRootTransaction) and never stored at Hazelcast
+		// so will request TXs either starting from 2 or local lastTxId+1, whichever bigger
+		long startTx = Math.max(2, lastTxId + 1);
+		System.out.printf("requesting initial transactions [%s - %s] \n", startTx, txId);
+
+		final Request request = new Request(startTx, txId, UUID.randomUUID());
+		final Object waitLock = new Object();
+		
+		ITopic<Response> responseTopic = hazelcast.getReliableTopic(request.uuid.toString());
+		responseTopic.addMessageListener(new MessageListener<HazelcastPrevayler.Response>() {
+
+			@Override
+			public void onMessage(Message<Response> message) {
+				final Response response = message.getMessageObject();
+				
+				System.out.printf("received response to request: %s, snapshotVersion: %s, transactions [%s - %s] \n",
+						request.uuid, response.snapshotVersion, response.transactions.get(0).systemVersion(), response.transactions.get(response.transactions.size()-1).systemVersion());
+				
+				if (response.snapshotVersion >= 0)
+					throw new UnsupportedOperationException("handling snaphot not implemented yet");
+				
+				response.transactions.forEach(tx -> localTxMap.put(tx.systemVersion(), tx));
+				
+				synchronized (waitLock) {
+					waitLock.notify();
+				}
+				
+				responseTopic.destroy();
+				System.out.printf("destroyed the responseTopic for uuid: %s \n", request.uuid);
+				
+				TimerTask timerTask = new TimerTask() {
+					@Override
+					public void run() {
+						IAtomicReference<?> reference = hazelcast.getCPSubsystem().getAtomicReference(request.uuid.toString());
+						reference.destroy();
+						System.out.printf("destroyed the IAtomicReference for uuid: %s \n", request.uuid);
+					}
+				};
+				new Timer().schedule(timerTask, MINUTE);
+			}
+		});
+		
+		int retryCount = 0;
+		
+		while (!localTxMap.containsKey(startTx) && retryCount < maxRetries) {
+			requestsTopic.publish(request);
+			
+			synchronized (waitLock) {
+				waitLock.wait(20000); // 20 seconds
+			}
+			retryCount++;
+		}
+		
+		if (!localTxMap.containsKey(startTx))
+			throw new IllegalStateException("couldnt received initial transactions");
+		
+		System.out.printf("received all initial transactions [%s - %s] \n", startTx, txId);
+	}
 	
 	public long getOwnTransactionCount() {
 		return ownTxCount;
@@ -588,6 +585,38 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		}
 	}
 
+	
+	private Response createResponse(Request request) throws Exception {
+		long snapshotVersion = Chainvayler.getLastSnapshotVersion();
+		if (snapshotVersion >= 0)
+			throw new UnsupportedOperationException("response with snapshots not implemented yet!");
+		// TODO how to handle snapshots ?
+		
+		if (journal instanceof TransientJournal) {
+			// we are not doing anything related to pool
+			// but since all journal.append calls are guarded with poolLock, we use the same lock here
+			// to avoid concurrent modification exception
+			Context.getInstance().poolLock.lock();
+			try {
+				List<TransactionTimestamp> transactions = Utils.getDeclaredFieldValue("journal", journal);
+				System.out.printf("journal first: %s, last: %s \n", transactions.get(0).systemVersion(), transactions.get(transactions.size()-1).systemVersion());
+				assert (transactions.get(0).systemVersion() == 1L); // is this always true with TransientJournal?
+				
+				int fromIdx = (int)(request.fromTx - 1);
+				int toIdx =  (int)(request.toTx); // no minus one since request.toTx is inclusive
+				
+				List<TransactionTimestamp> subList = new ArrayList<>(transactions.subList(fromIdx, toIdx));
+				System.out.printf("journal sub list, first: %s, last: %s \n", subList.get(0).systemVersion(), subList.get(subList.size()-1).systemVersion());
+				
+				return new Response(subList);
+			} finally {
+				Context.getInstance().poolLock.unlock();
+			}
+		} else {
+			throw new UnsupportedOperationException("response with Non TransientJournal not implemented yet!");
+		}
+	}
+	
 	private final MessageListener<TransactionTimestamp> transactionsTopicListener = new MessageListener<TransactionTimestamp>() {
 
 		@Override
@@ -599,7 +628,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 					message.getPublishingMember().localMember(), txId, Thread.currentThread());
 			
 			if (message.getPublishingMember().localMember() || (txId == 1L)) {
-				if (Context.DEBUG) System.out.printf("skipping topic message, txId: %s \n", txId);
+				if (Context.DEBUG) System.out.printf("skipping transaction topic message, txId: %s \n", txId);
 				return;
 			}
 			
@@ -626,73 +655,54 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 				throw new RuntimeException(e);
 			}
 		}
-		
-	}; 
+	};
 	
-//	private final EntryListener<Long, TransactionTimestamp> replicatedMapEntryAddedListener = new EntryAdapter<Long, TransactionTimestamp>() {
-//
-//		@Override
-//		public void entryAdded(EntryEvent<Long, TransactionTimestamp> event) {
-//			if (Context.DEBUG) System.out.printf("map entry added, local: %s, key: %s, thread: %s \n", event.getMember().localMember(), event.getKey(), Thread.currentThread());
-//			
-//			if (event.getMember().localMember() || event.getKey().equals(Long.valueOf(1))) {
-//				if (Context.DEBUG) System.out.printf("skipping map entry %s \n", event.getKey());
-//				return;
-//			}
-//			
-//			try {
-//				if (initialized) {
-//					maybeCommitTransactions();
-//				}
-//			} catch (RuntimeException e) {
-//				e.printStackTrace();
-//				throw e;
-//			} catch (Exception e) {
-//				e.printStackTrace();
-//				throw new RuntimeException(e);
-//			}
-//		}
-//	};
-//	
-//	private final EntryAddedListener<Long, TransactionTimestamp> iMapEntryAddedListener = new EntryAddedListener<Long, TransactionTimestamp>() {
-//		@Override
-//		public void entryAdded(EntryEvent<Long, TransactionTimestamp> event) {
-//			if (Context.DEBUG) System.out.printf("map entry added, local: %s, key: %s, thread: %s \n", event.getMember().localMember(), event.getKey(), Thread.currentThread());
-//			
-//			if (event.getMember().localMember() || event.getKey().equals(Long.valueOf(1))) {
-//				if (Context.DEBUG) System.out.printf("skipping map entry %s \n", event.getKey());
-//				return;
-//			}
-//			
-//			if (USE_LOCAL_TX_MAP) {
-//				// looks like this approach, instead of retrieving value from global map is much faster
-//				// possibly because every get call to global map makes a network call
-//				// but this all depends on Hazelcast dont miss any entryAdded event
-//				localTxMap.put(event.getKey(), event.getValue());
-//			}
-//			
-//			try {
-//				if (initialized) {
-//					maybeCommitTransactions();
-//				}
-//			} catch (RuntimeException e) {
-//				e.printStackTrace();
-//				throw e;
-//			} catch (Exception e) {
-//				e.printStackTrace();
-//				throw new RuntimeException(e);
-//			}
-//		}
-//	};
-//	
-//	private final MapPartitionLostListener mapPartitionLostListener = new MapPartitionLostListener() {
-//
-//		@Override
-//		public void partitionLost(MapPartitionLostEvent event) {
-//			System.out.printf("WARN: map partition lost: %s \n", event);
-//		}
-//		
-//	};
+	private final MessageListener<Request> requestsTopicListener = new MessageListener<Request>() {
+
+		@Override
+		public void onMessage(Message<Request> message) {
+			Request request = message.getMessageObject();
+			
+			System.out.printf("request topic message received, local: %s, tx range: [%s - %s], uuid: %s \n", 
+					message.getPublishingMember().localMember(), request.fromTx, request.toTx, request.uuid);
+			
+			if (message.getPublishingMember().localMember()) {
+				System.out.printf("skipping local request topic message, uuid: %s \n", request.uuid);
+				return;
+			}
+			
+			synchronized (lastTxIdLock) {
+				// we dont have the requested transactions
+				if (lastTxId < request.toTx) {
+					System.out.printf("skipping request topic message, I dont have the requested transactions. local lastTxId: %s, requested lastTxId: %s, uuid: %s \n", lastTxId, request.toTx, request.uuid);
+					return;
+				}
+			}
+			
+			Lock responseLock = hazelcast.getCPSubsystem().getLock("responses");
+			responseLock.lock();
+			try {
+				System.out.println("locked global responses lock");
+				
+				IAtomicReference<Boolean> atomicRef = hazelcast.getCPSubsystem().getAtomicReference(request.uuid.toString());
+				if (!atomicRef.isNull()) {
+					System.out.printf("request reference is not null, ignoring request: %s \n", request.uuid);
+					assert atomicRef.get() == Boolean.TRUE;
+					return;
+				}
+
+				Response response = createResponse(request);
+				hazelcast.getReliableTopic(request.uuid.toString()).publish(response);
+				System.out.printf("sent response to request: %s \n", request.uuid);
+				
+				atomicRef.set(true);
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
+				responseLock.unlock();
+			}
+		}
+	};
 	
 	private final TransactionSubscriber transactionSubscriber = new TransactionSubscriber() {
 		
@@ -744,4 +754,43 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		} 
 	};
 	
+	/** State request */
+	private static class Request implements Serializable {
+		
+		private static final long serialVersionUID = 1L;
+		
+		/** Both inclusive */
+		final long fromTx, toTx;
+		final UUID uuid;
+		
+		Request(long fromTx, long toTx, UUID uuid) {
+			this.fromTx = fromTx;
+			this.toTx = toTx;
+			this.uuid = uuid;
+		}
+	}
+	
+	/** Response to state request */
+	private static class Response implements Serializable {
+		
+		private static final long serialVersionUID = 1L;
+		
+		final RootHolder rootHolder;
+		final long snapshotVersion;
+		final List<TransactionTimestamp> transactions;
+		
+		Response(List<TransactionTimestamp> transactions) {
+			this(null, -1L, transactions);
+		}
+		
+		Response(RootHolder rootHolder, long snapshotVersion, List<TransactionTimestamp> transactions) {
+			this.rootHolder = rootHolder;
+			this.snapshotVersion = snapshotVersion;
+			this.transactions = transactions;
+		}
+
+		
+		
+	}
+
 }
