@@ -65,6 +65,7 @@ public class ConstructorTransaction implements TransactionWithQuery<RootHolder, 
 					// we need to prevent any other transaction kicking in and create objects
 					// that's the reason we first lock object pool
 					// it's unlocked by injected bytecode to constructors
+					// TODO most possibly we can do this with a try/finally clouse in the constructor, will be much cleaner 
 					Context.getInstance().lockObjectPool(target);
 					if (Context.DEBUG) System.out.printf("ConstructorTransaction, locked object pool for %s \n", Utils.identityCode(target));
 					
