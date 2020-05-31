@@ -37,7 +37,7 @@ dependencies {
                    'org.prevayler:prevayler-factory:2.6',
 		           'org.javassist:javassist:3.26.0-GA'
 
-    compileOnly    'com.hazelcast:hazelcast:4.0',
+    compileOnly    'com.hazelcast:hazelcast:4.0.1',
     		       'com.hazelcast:hazelcast-kubernetes:2.0.1'
     		
     testCompile    'junit:junit:4.12'
