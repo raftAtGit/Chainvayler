@@ -282,7 +282,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		}
 		
 		if (!localTxMap.containsKey(startTx))
-			throw new IllegalStateException("couldnt received initial transactions");
+			throw new IllegalStateException("couldnt receive initial transactions");
 		
 		System.out.printf("received all initial transactions [%s - %s] \n", startTx, txId);
 	}
@@ -324,7 +324,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 
 			storeGlobalTransaction(nextTxId, timestamp);
 			
-			synchronized(lastTxIdLock) {
+			synchronized (lastTxIdLock) {
 				while (!isProcessed(nextTxId - 1)) {
 					lastTxIdLock.wait();
 				}
@@ -341,12 +341,12 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 				if (Context.DEBUG) System.out.printf("executed next txId: %s, thread: %s \n", nextTxId, Thread.currentThread());
 				
 			} finally {
+				Context.getInstance().poolLock.unlock();
+				
 				synchronized (lastTxIdLock) {
 					lastTxId = nextTxId;
 					lastTxIdLock.notifyAll();
 				}
-				
-				Context.getInstance().poolLock.unlock();
 			}
 			
 			if (SAVE_POOL) savePool();
@@ -373,7 +373,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 
 		storeGlobalTransaction(nextTxId, timestamp);
 		
-		synchronized(lastTxIdLock) {
+		synchronized (lastTxIdLock) {
 			while (!isProcessed(nextTxId - 1)) {
 				lastTxIdLock.wait();
 			}
@@ -390,12 +390,12 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			if (Context.DEBUG) System.out.printf("executed next txId: %s, thread: %s \n", nextTxId, Thread.currentThread());
 			
 		} finally {
+			Context.getInstance().poolLock.unlock();
+			
 			synchronized (lastTxIdLock) {
 				lastTxId = nextTxId;
 				lastTxIdLock.notifyAll();
 			}
-			
-			Context.getInstance().poolLock.unlock();
 		}
 		
 		if (SAVE_POOL) savePool();
