@@ -36,8 +36,10 @@ stages:
         tags: |
           $(tag)
           latest
+          dev
     - task: Docker@2
-      displayName: Docker push Chainvayler image
+      displayName: 'Docker push Chainvayler image: master'
+      condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
       inputs:
         command: push
         containerRegistry: docker_hub_connection_raft
@@ -45,6 +47,16 @@ stages:
         tags: |
           $(tag)
           latest
+    - task: Docker@2
+      displayName: 'Docker push Chainvayler image: feature/'
+      condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/feature/'))
+      inputs:
+        command: push
+        containerRegistry: docker_hub_connection_raft
+        repository: raft/chainvayler
+        tags: |
+          $(tag)
+          dev
     - task: Docker@2
       displayName: Docker build Bank sample image
       inputs:
@@ -55,12 +67,24 @@ stages:
         tags: |
           $(tag)
           latest
+          dev
     - task: Docker@2
-      displayName: Docker push Bank sample image
+      displayName: 'Docker push Bank sample image: master'
+      condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
       inputs:
         command: push
         containerRegistry: docker_hub_connection_raft
         repository: raft/chainvayler-bank-sample
         tags: |
           $(tag)
-          latest                    
+          latest
+    - task: Docker@2
+      displayName: 'Docker push Bank sample image: feature/'
+      condition: and(succeeded(), startsWith(variables['Build.SourceBranch'], 'refs/heads/feature/'))
+      inputs:
+        command: push
+        containerRegistry: docker_hub_connection_raft
+        repository: raft/chainvayler-bank-sample
+        tags: |
+          $(tag)
+          dev
