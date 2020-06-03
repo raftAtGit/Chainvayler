@@ -21,6 +21,7 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
+import java.util.stream.Collectors;
 
 import org.prevayler.Clock;
 import org.prevayler.Prevayler;
@@ -72,6 +73,12 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	private static final long MINUTE = 60 * 1000; // milliseconds
 	
+	/** After this much time of waiting for a transaction, assume sending peer died 
+	 * and send network a NoOp transaction */
+	private static final long TX_EXPIRE_PERIOD = 20 * 1000;
+	
+	private static final long TX_EXPIRE_CHECK_PERIOD = 1000;
+	
 	private final Prevayler<RootHolder> prevayler;
 	private final TransactionPublisher publisher;
 	private final Serializer journalSerializer;
@@ -84,11 +91,13 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	private final IAtomicLong globalTxId;
 	private final ITopic<TransactionTimestamp> transactionsTopic;
+	private final ITopic<List<TransactionTimestamp>> expiredTransactionsTopic;
 	private final ITopic<Request> requestsTopic;
 	
 	private final Map<Long, TransactionTimestamp> localTxMap = Collections.synchronizedMap(new HashMap<>());
-	private SortedSet<Long> localTxIds = Collections.synchronizedSortedSet(new TreeSet<>());
+	private final SortedSet<Long> localTxIds = Collections.synchronizedSortedSet(new TreeSet<>());
 	
+	/** local last committed transaction Id */
 	private long lastTxId = 0;
 	private long ownTxCount = 0;
 	
@@ -97,6 +106,9 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	private boolean initialized = false;
 	private boolean stopped = false;
+	
+	private long waitingForTx = -1L;
+	private long waitingTxSince;
 	
 	private final int txIdReserveSize;
 	private final Queue<Long> reservedTxIds = new LinkedList<>();
@@ -136,6 +148,10 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		transactionsTopic.addMessageListener(transactionsTopicListener);
 		System.out.println("got ReliableTopic for transactions");
 		
+		this.expiredTransactionsTopic = hazelcast.getReliableTopic("expired-transactions");
+		expiredTransactionsTopic.addMessageListener(expiredTransactionsTopicListener);
+		System.out.println("got ReliableTopic for expired-transactions");
+		
 		this.requestsTopic = hazelcast.getReliableTopic("requests");
 		System.out.println("got ReliableTopic for requests");
 		
@@ -149,10 +165,12 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	public void start() {
 		commitCheckerThread.start();
+		new Timer("Expired Tx Checker", true).scheduleAtFixedRate(expiredTxTimerTask, TX_EXPIRE_CHECK_PERIOD, TX_EXPIRE_CHECK_PERIOD);
 	}
 	
 	public void shutdown() {
 		stopped = true;
+		expiredTxTimerTask.cancel();
 	}
 	
 	private Config createHazelcastConfig(raft.chainvayler.Config.Replication replicationConfig) {
@@ -484,6 +502,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 				TransactionTimestamp transaction = getGlobalTransaction(nextTxId);
 				if (transaction == null) {
 					if (Context.DEBUG) System.out.println("globalTxMap doesnt contain key " + nextTxId);
+					setTimerForNextTransaction(nextTxId);
 					break;
 				}
 				
@@ -507,7 +526,6 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	private void commit(TransactionTimestamp transaction) throws Exception {
 			
-		
 		Context.getInstance().setInRemoteTransaction(true);
 		
 		if (Context.DEBUG) System.out.printf("commiting txId: %s, tx: %s \n", transaction.systemVersion(), transaction.capsule().deserialize(new JavaSerializer()));
@@ -548,6 +566,12 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			Context.getInstance().poolLock.unlock();
 		}
 	}
+	
+	private void setTimerForNextTransaction(long nextTxId) {
+		waitingForTx = nextTxId;
+		waitingTxSince = System.currentTimeMillis();
+	} 
+
 	
 	private void printPool(String prefix) {
 		try {
@@ -657,6 +681,29 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		}
 	};
 	
+	private final MessageListener<List<TransactionTimestamp>> expiredTransactionsTopicListener = new MessageListener<List<TransactionTimestamp>>() {
+
+		@Override
+		public void onMessage(Message<List<TransactionTimestamp>> message) {
+			
+			final List<TransactionTimestamp> expiredTxs = message.getMessageObject();
+			
+			if (Context.DEBUG) System.out.printf("expired transactions topic message received, local: %s, txIds size: %s \n", 
+					message.getPublishingMember().localMember(), expiredTxs.size());
+			
+			expiredTxs.forEach(tx -> localTxMap.put(tx.systemVersion(), tx));
+			
+			try {
+				if (initialized) {
+					maybeCommitTransactions();
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+				throw new RuntimeException(e);
+			}
+		}
+	};
+	
 	private final MessageListener<Request> requestsTopicListener = new MessageListener<Request>() {
 
 		@Override
@@ -754,6 +801,77 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		} 
 	};
 	
+	private final TimerTask expiredTxTimerTask = new TimerTask() {
+		@Override
+		public void run() { 
+			if (waitingTxSince + TX_EXPIRE_PERIOD > System.currentTimeMillis())
+				return;
+			
+			synchronized (lastTxIdLock) {
+				if (lastTxId > waitingForTx)
+					return;
+			}
+			
+			final long lastTxId = globalTxId.get();
+			if (lastTxId < waitingForTx)
+				return;
+			
+			Lock expiredLock = hazelcast.getCPSubsystem().getLock("expired-transactions");
+			expiredLock.lock();
+			try {
+				System.out.println("locked global expired-transactions lock");
+				
+				final IAtomicReference<Boolean> atomicRef = hazelcast.getCPSubsystem().getAtomicReference(String.valueOf(waitingForTx));
+				if (!atomicRef.isNull()) {
+					System.out.printf("expired-transaction reference is not null, skipping: %s \n", waitingForTx);
+					assert atomicRef.get() == Boolean.TRUE;
+					return;
+				}
+				
+				List<Long> expiredTxIds = new LinkedList<>();
+				
+				for (long l = waitingForTx; l <= lastTxId; l++) {
+					if (!localTxMap.containsKey(l) && !localTxIds.contains(l)) {
+						expiredTxIds.add(l);
+					}
+				} 
+				
+				System.out.printf("sending NoOp transaction for expired transactions: %s \n", expiredTxIds);
+				
+				final Date now = new Date();
+				final NoOpTransaction noOpTransaction = new NoOpTransaction();
+				
+				List<TransactionTimestamp> expiredTxs = expiredTxIds.stream().map(txId -> {
+						TransactionCapsuleCV<? super RootHolder> capsule = new TransactionCapsuleCV<>(noOpTransaction, journalSerializer, true);
+						return new TransactionTimestamp(capsule, txId, now);
+					}).collect(Collectors.toList());
+
+				setTimerForNextTransaction(lastTxId + 1);
+				
+				expiredTransactionsTopic.publish(expiredTxs);
+				
+				atomicRef.set(true);
+				
+				TimerTask timerTask = new TimerTask() {
+					@Override
+					public void run() {
+						atomicRef.destroy();
+						System.out.printf("destroyed the IAtomicReference for tx id: %s \n", waitingForTx);
+					}
+				};
+				new Timer().schedule(timerTask, MINUTE);
+				
+				
+			} catch (Exception e) {
+				e.printStackTrace();
+			} finally {
+				expiredLock.unlock();
+			}
+			
+			
+		}
+	};
+	
 	/** State request */
 	private static class Request implements Serializable {
 		
@@ -788,8 +906,16 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			this.snapshotVersion = snapshotVersion;
 			this.transactions = transactions;
 		}
+	}
+	
+	private static class NoOpTransaction implements Transaction<RootHolder> {
 
+		private static final long serialVersionUID = 1L;
 		
+		@Override
+		public void executeOn(RootHolder prevalentSystem, Date executionTime) {
+			// None. NoOp
+		}
 		
 	}
 
