@@ -168,10 +168,10 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		new Timer("Expired Tx Checker", true).scheduleAtFixedRate(expiredTxTimerTask, TX_EXPIRE_CHECK_PERIOD, TX_EXPIRE_CHECK_PERIOD);
 	}
 	
-	public void shutdown() {
-		stopped = true;
-		expiredTxTimerTask.cancel();
-	}
+//	public void shutdown() {
+//		stopped = true;
+//		expiredTxTimerTask.cancel();
+//	}
 	
 	private Config createHazelcastConfig(raft.chainvayler.Config.Replication replicationConfig) {
 		Config hazelcastConfig = new Config();
@@ -327,7 +327,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	public void execute(Transaction<? super RootHolder> transaction) {
 		
 		if (stopped) 
-			throw new IllegalStateException("Chainvayler is shutting down, not accepting any more transactions");
+			throw new IllegalStateException("Chainvayler is closed, not accepting any more transactions");
 		
 		try {
 			final long nextTxId = getNextGlobalTxId();
@@ -380,7 +380,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	public <R> R execute(TransactionWithQuery<? super RootHolder, R> transactionWithQuery) throws Exception {
 
 		if (stopped) 
-			throw new IllegalStateException("Chainvayler is shutting down, not accepting any more transactions");
+			throw new IllegalStateException("Chainvayler is closed, not accepting any more transactions");
 		
 		final long nextTxId = getNextGlobalTxId();
 		localTxIds.add(nextTxId);
@@ -440,6 +440,8 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	@Override
 	public void close() throws IOException {
 		prevayler.close();
+		stopped = true;
+		expiredTxTimerTask.cancel();
 	}
 	
 	private boolean isProcessed(long txId) throws Exception {

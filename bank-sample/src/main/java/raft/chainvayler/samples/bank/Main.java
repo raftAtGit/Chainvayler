@@ -1,5 +1,6 @@
 package raft.chainvayler.samples.bank;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
@@ -54,7 +55,8 @@ public class Main {
 		// TODO remove
 		Context.DEBUG = options.debug;
 		
-		registerShutdownHook();
+		if (options.registerShutdownHook)
+			registerShutdownHook();
 		
 		Bank bank = Chainvayler.create(Bank.class, config);
 		
@@ -197,9 +199,13 @@ public class Main {
 		Runtime.getRuntime().addShutdownHook(new Thread()  {
 			@Override
 			public void run() {
-				System.out.println("Shutdown hook is running, shutting down Chainvayler");
+				System.out.println("Shutdown hook is running, closing Chainvayler");
 				stopped = true;
-				Chainvayler.shutdown();
+				try {
+					Chainvayler.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
 			}
 		});
 	}
@@ -512,6 +518,7 @@ public class Main {
 		public String peerStatsRegistry;
 		public boolean debug = false;
 		public boolean takeSnapshot = false;
+		public boolean registerShutdownHook = true;
 		
 		@Override
 		public String toString() {
@@ -528,7 +535,8 @@ public class Main {
 				   + "\n    stopReaders: " + stopReaders
 				   + "\n    peerStatsRegistry: " + peerStatsRegistry
 				   + "\n    debug: " + debug
-				   + "\n    takeSnapshot: " + takeSnapshot;
+				   + "\n    takeSnapshot: " + takeSnapshot
+				   + "\n    registerShutdownHook: " + registerShutdownHook;
 		}
 	}
 	
@@ -571,6 +579,9 @@ public class Main {
 		if (comLine.containsArg("--takeSnapshot"))
             options.takeSnapshot  = Boolean.parseBoolean(comLine.getArg("--takeSnapshot"));
 		
+		if (comLine.containsArg("--registerShutdownHook"))
+            options.registerShutdownHook  = Boolean.parseBoolean(comLine.getArg("--registerShutdownHook"));
+		
 		if (comLine.containsArg("--debug"))
             options.debug  = Boolean.parseBoolean(comLine.getArg("--debug"));
 		
@@ -602,6 +613,7 @@ public class Main {
 	    ps.println("    --peerStatsRegistry <host|IP>        : if provided, peer is registered by using this RMI registry");
 	    ps.println("    --hazelcastAsyncBackupCount          : async backup count for Hazelcast IMap");
 	    ps.println("    --takeSnapshot <true|false*>         : take snaphot of the system after writer threads completed?");
+	    ps.println("    --registerShutdownHook <true*|false> : register shutdown hook and close Chainvayler when JVM is shutting down?");
 	    ps.println("    --debug <true|false*>        		 : enable debug logging?");
 	}
 	

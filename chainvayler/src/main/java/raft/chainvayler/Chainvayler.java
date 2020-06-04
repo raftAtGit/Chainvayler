@@ -209,9 +209,10 @@ public class Chainvayler<T> {
 //		return getInstance().rootHolder.getRoot();
 //	}
 	
-	public static void shutdown() {
-		if (instance != null && instance.hazelcastPrevayler != null)
-			instance.hazelcastPrevayler.shutdown();
+	public static void close() throws IOException {
+		Context.getInstance().prevayler.close();
+//		if (instance != null && instance.hazelcastPrevayler != null)
+//			instance.hazelcastPrevayler.shutdown();
 	}
 	
 	public static <T> T create(Class<T> clazz) throws Exception {
