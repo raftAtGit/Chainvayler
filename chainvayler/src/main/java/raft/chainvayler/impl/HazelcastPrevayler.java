@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -33,15 +34,18 @@ import org.prevayler.foundation.Turn;
 import org.prevayler.foundation.serialization.JavaSerializer;
 import org.prevayler.foundation.serialization.Serializer;
 import org.prevayler.implementation.PrevalentSystemGuard;
+import org.prevayler.implementation.PrevaylerDirectory;
 import org.prevayler.implementation.PrevaylerImpl;
 import org.prevayler.implementation.TransactionCapsuleCV;
 import org.prevayler.implementation.TransactionGuide;
 import org.prevayler.implementation.TransactionTimestamp;
 import org.prevayler.implementation.TransactionWithQueryCapsuleCV;
 import org.prevayler.implementation.journal.Journal;
+import org.prevayler.implementation.journal.PersistentJournal;
 import org.prevayler.implementation.journal.TransientJournal;
 import org.prevayler.implementation.publishing.TransactionPublisher;
 import org.prevayler.implementation.publishing.TransactionSubscriber;
+import org.prevayler.implementation.snapshot.GenericSnapshotManager;
 
 import com.hazelcast.config.Config;
 import com.hazelcast.core.Hazelcast;
@@ -84,6 +88,8 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	private final Serializer journalSerializer;
 	private final PrevalentSystemGuard<RootHolder> prevalerGuard;
 	private final Journal journal;
+	private final GenericSnapshotManager<RootHolder> snapshotManager;
+	private final PrevaylerDirectory prevaylerDirectory;
 	private final Field systemVersionField;
 	private final Field nextTransactionField;
 	
@@ -100,12 +106,14 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	/** local last committed transaction Id */
 	private long lastTxId = 0;
 	private long ownTxCount = 0;
+	private long lastExpiredTxId = 0;
 	
 	private final Object lastTxIdLock = new Object();
 	private final Object commitLock = new Object();
 	
 	private boolean initialized = false;
-	private boolean stopped = false;
+	private boolean closed = false;
+	private boolean error = false;
 	
 	private long waitingForTx = -1L;
 	private long waitingTxSince;
@@ -120,6 +128,8 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		this.publisher = Utils.getDeclaredFieldValue("_publisher", prevayler);
 		this.journalSerializer = Utils.getDeclaredFieldValue("_journalSerializer", prevayler);
 		this.journal = Utils.getDeclaredFieldValue("_journal", publisher);
+		this.snapshotManager = Utils.getDeclaredFieldValue("_snapshotManager", prevayler);
+		this.prevaylerDirectory = Utils.getDeclaredFieldValue("_directory", snapshotManager);
 		this.systemVersionField = Utils.getDeclaredField("_systemVersion", prevalerGuard); 
 		this.nextTransactionField = Utils.getDeclaredField("_nextTransaction", publisher);
 		
@@ -252,54 +262,78 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		System.out.printf("requesting initial transactions [%s - %s] \n", startTx, txId);
 
 		final Request request = new Request(startTx, txId, UUID.randomUUID());
-		final Object waitLock = new Object();
+		final boolean[] receivedResponse = { false };
 		
 		ITopic<Response> responseTopic = hazelcast.getReliableTopic(request.uuid.toString());
 		responseTopic.addMessageListener(new MessageListener<HazelcastPrevayler.Response>() {
 
 			@Override
 			public void onMessage(Message<Response> message) {
-				final Response response = message.getMessageObject();
-				
-				System.out.printf("received response to request: %s, snapshotVersion: %s, transactions [%s - %s] \n",
-						request.uuid, response.snapshotVersion, response.transactions.get(0).systemVersion(), response.transactions.get(response.transactions.size()-1).systemVersion());
-				
-				if (response.snapshotVersion >= 0)
-					throw new UnsupportedOperationException("handling snaphot not implemented yet");
-				
-				response.transactions.forEach(tx -> localTxMap.put(tx.systemVersion(), tx));
-				
-				synchronized (waitLock) {
-					waitLock.notify();
-				}
-				
-				responseTopic.destroy();
-				System.out.printf("destroyed the responseTopic for uuid: %s \n", request.uuid);
-				
-				TimerTask timerTask = new TimerTask() {
-					@Override
-					public void run() {
-						IAtomicReference<?> reference = hazelcast.getCPSubsystem().getAtomicReference(request.uuid.toString());
-						reference.destroy();
-						System.out.printf("destroyed the IAtomicReference for uuid: %s \n", request.uuid);
+				try {
+					final Response response = message.getMessageObject();
+					
+					System.out.printf("received response to request: %s, snapshotVersion: %s, transactions [%s - %s] \n",
+							request.uuid, response.snapshotVersion, response.transactions.get(0).systemVersion(), response.transactions.get(response.transactions.size()-1).systemVersion());
+					
+					if (response.snapshotVersion > 0) {
+						System.out.printf("response has snapshot, version: %s, setting snapshot fields \n", response.snapshotVersion);
+						assert response.rootHolder != null;
+						
+						lastTxId = response.snapshotVersion;
+						
+						Utils.getDeclaredField("_prevalentSystem", prevalerGuard).set(prevalerGuard, response.rootHolder);
+						Utils.getDeclaredField("_systemVersion", prevalerGuard).set(prevalerGuard, response.snapshotVersion);
+						Utils.getDeclaredField("_nextTransaction", publisher).set(publisher, response.snapshotVersion + 1);
+						
+						if (journal instanceof PersistentJournal) {
+							Utils.getDeclaredField("_nextTransaction", journal).set(journal, response.snapshotVersion + 1);
+						} else {
+							assert journal instanceof TransientJournal;
+							Utils.getDeclaredField("_initialTransaction", journal).set(journal, response.snapshotVersion + 1);
+						}
+
+						// we need to take snapshot here, otherwise there might be a gap in transactions in next restart 
+						prevayler.takeSnapshot();
 					}
-				};
-				new Timer().schedule(timerTask, MINUTE);
+					
+					response.transactions.forEach(tx -> localTxMap.put(tx.systemVersion(), tx));
+					
+					synchronized (receivedResponse) {
+						receivedResponse[0] = true;
+						receivedResponse.notify();
+					}
+					
+					responseTopic.destroy();
+					System.out.printf("destroyed the responseTopic for uuid: %s \n", request.uuid);
+					
+					TimerTask timerTask = new TimerTask() {
+						@Override
+						public void run() {
+							IAtomicReference<?> reference = hazelcast.getCPSubsystem().getAtomicReference(request.uuid.toString());
+							reference.destroy();
+							System.out.printf("destroyed the IAtomicReference for uuid: %s \n", request.uuid);
+						}
+					};
+					new Timer().schedule(timerTask, MINUTE);
+					
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
 			}
 		});
 		
 		int retryCount = 0;
 		
-		while (!localTxMap.containsKey(startTx) && retryCount < maxRetries) {
+		while (!receivedResponse[0] && retryCount < maxRetries) {
 			requestsTopic.publish(request);
 			
-			synchronized (waitLock) {
-				waitLock.wait(20000); // 20 seconds
+			synchronized (receivedResponse) {
+				receivedResponse.wait(20000); // 20 seconds
 			}
 			retryCount++;
 		}
 		
-		if (!localTxMap.containsKey(startTx))
+		if (!receivedResponse[0])
 			throw new IllegalStateException("couldnt receive initial transactions");
 		
 		System.out.printf("received all initial transactions [%s - %s] \n", startTx, txId);
@@ -325,9 +359,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 
 	@Override
 	public void execute(Transaction<? super RootHolder> transaction) {
-		
-		if (stopped) 
-			throw new IllegalStateException("Chainvayler is closed, not accepting any more transactions");
+		checkStillValid();
 		
 		try {
 			final long nextTxId = getNextGlobalTxId();
@@ -378,9 +410,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	
 	@Override
 	public <R> R execute(TransactionWithQuery<? super RootHolder, R> transactionWithQuery) throws Exception {
-
-		if (stopped) 
-			throw new IllegalStateException("Chainvayler is closed, not accepting any more transactions");
+		checkStillValid();
 		
 		final long nextTxId = getNextGlobalTxId();
 		localTxIds.add(nextTxId);
@@ -440,8 +470,15 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	@Override
 	public void close() throws IOException {
 		prevayler.close();
-		stopped = true;
+		closed = true;
 		expiredTxTimerTask.cancel();
+	}
+	
+	private void checkStillValid() {
+		if (error)
+			throw new Error("Chainvayler is no longer accepting transactions due to an error from an earlier transaction.");
+		if (closed) 
+			throw new IllegalStateException("Chainvayler is closed, not accepting any more transactions");
 	}
 	
 	private boolean isProcessed(long txId) throws Exception {
@@ -613,33 +650,41 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 
 	
 	private Response createResponse(Request request) throws Exception {
-		long snapshotVersion = Chainvayler.getLastSnapshotVersion();
-		if (snapshotVersion >= 0)
-			throw new UnsupportedOperationException("response with snapshots not implemented yet!");
-		// TODO how to handle snapshots ?
+		RootHolder rootHolder = null;
+		long snapshotVersion = 0;
+		long lastSnapshotVersion = Chainvayler.getLastSnapshotVersion();
 		
-		if (journal instanceof TransientJournal) {
-			// we are not doing anything related to pool
-			// but since all journal.append calls are guarded with poolLock, we use the same lock here
-			// to avoid concurrent modification exception
-			Context.getInstance().poolLock.lock();
-			try {
-				List<TransactionTimestamp> transactions = Utils.getDeclaredFieldValue("journal", journal);
-				System.out.printf("journal first: %s, last: %s \n", transactions.get(0).systemVersion(), transactions.get(transactions.size()-1).systemVersion());
-				assert (transactions.get(0).systemVersion() == 1L); // is this always true with TransientJournal?
-				
-				int fromIdx = (int)(request.fromTx - 1);
-				int toIdx =  (int)(request.toTx); // no minus one since request.toTx is inclusive
-				
-				List<TransactionTimestamp> subList = new ArrayList<>(transactions.subList(fromIdx, toIdx));
-				System.out.printf("journal sub list, first: %s, last: %s \n", subList.get(0).systemVersion(), subList.get(subList.size()-1).systemVersion());
-				
-				return new Response(subList);
-			} finally {
-				Context.getInstance().poolLock.unlock();
-			}
-		} else {
-			throw new UnsupportedOperationException("response with Non TransientJournal not implemented yet!");
+		if (lastSnapshotVersion >= request.fromTx) {
+			snapshotVersion = lastSnapshotVersion;
+			
+			File snapshotFile = prevaylerDirectory.latestSnapshot();
+			Method method = Utils.getDeclaredMethod("readSnapshot", snapshotManager, File.class);
+			rootHolder = (RootHolder) method.invoke(snapshotManager, snapshotFile);
+			
+			System.out.printf("snapshot version: %s, snapshot file: %s \n", snapshotVersion, snapshotFile);
+		}
+		
+		List<TransactionTimestamp> transactions = new ArrayList<>();
+		
+		// we are not doing anything related to pool
+		// but since all journal.append calls are guarded with poolLock, we use the same lock here
+		// to avoid concurrent modification exception
+		Context.getInstance().poolLock.lock();
+		try {
+			journal.update(new TransactionSubscriber() {
+				@Override
+				public void receive(TransactionTimestamp transactionTimestamp) {
+					if (transactionTimestamp.systemVersion() <= request.toTx)
+						transactions.add(transactionTimestamp);
+				}
+			}, Math.max(snapshotVersion + 1,  request.fromTx));
+	
+			System.out.printf("got transactions from journal, first: %s, last: %s \n", 
+					transactions.get(0).systemVersion(), transactions.get(transactions.size()-1).systemVersion());
+			
+			return new Response(rootHolder, snapshotVersion, transactions);
+		} finally {
+			Context.getInstance().poolLock.unlock();
 		}
 	}
 	
@@ -652,6 +697,11 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			
 			if (Context.DEBUG) System.out.printf("transaction topic message received, local: %s, txId: %s, thread: %s \n", 
 					message.getPublishingMember().localMember(), txId, Thread.currentThread());
+
+			if (txId <= lastExpiredTxId) {
+				System.out.printf("received a transaction (id: %s) earlier than last expired transaction (id: %s) closing Chainvayler \n", txId, lastExpiredTxId);
+				error = true;
+			}
 			
 			if (message.getPublishingMember().localMember() || (txId == 1L)) {
 				if (Context.DEBUG) System.out.printf("skipping transaction topic message, txId: %s \n", txId);
@@ -662,13 +712,9 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			
 			try {
 				if (initialized) {
-					//maybeCommitTransactions();
-					
 					// we cannot commit in this thread.
 					// if we are not fast enough, Hazelcast terminates topic listener
 					// notifying will make commitCheckerThread commit transactions
-					
-					// TODO maybe even waiting for the lock is too much?
 					synchronized (lastTxIdLock) {
 						lastTxIdLock.notifyAll();
 					}
@@ -694,6 +740,8 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 					message.getPublishingMember().localMember(), expiredTxs.size());
 			
 			expiredTxs.forEach(tx -> localTxMap.put(tx.systemVersion(), tx));
+			
+			lastExpiredTxId = expiredTxs.get(expiredTxs.size()-1).systemVersion();
 			
 			try {
 				if (initialized) {
@@ -898,10 +946,6 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		final RootHolder rootHolder;
 		final long snapshotVersion;
 		final List<TransactionTimestamp> transactions;
-		
-		Response(List<TransactionTimestamp> transactions) {
-			this(null, -1L, transactions);
-		}
 		
 		Response(RootHolder rootHolder, long snapshotVersion, List<TransactionTimestamp> transactions) {
 			this.rootHolder = rootHolder;

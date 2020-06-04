@@ -1,6 +1,7 @@
 package raft.chainvayler.impl;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 
 /**
  * 
@@ -94,4 +95,9 @@ public class Utils {
 		return field;
 	}
     
+	public static Method getDeclaredMethod(String methodName, Object o, Class<?>... parameterTypes) throws Exception {
+		Method method = o.getClass().getDeclaredMethod(methodName, parameterTypes);
+		method.setAccessible(true);
+		return method;
+	}
 }

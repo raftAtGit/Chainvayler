@@ -48,7 +48,7 @@ public class Chainvayler<T> {
 	private final Class<T> rootClass;
 	private final Config config;
 	
-	private RootHolder rootHolder;
+//	private RootHolder rootHolder;
 	private HazelcastPrevayler hazelcastPrevayler;
 	
 	private Object prevalerGuard;
@@ -122,16 +122,20 @@ public class Chainvayler<T> {
 			GenericSnapshotManager<?> snapshotManager = Utils.getDeclaredFieldValue("_snapshotManager", prevayler);
 			this.prevaylerDirectory = Utils.getDeclaredFieldValue("_directory", snapshotManager);
 			
-			this.rootHolder = prevayler.prevalentSystem();
+			RootHolder rootHolder = prevayler.prevalentSystem();
 			
 			if (config.getReplication().isEnabled()) {
 				this.hazelcastPrevayler = new HazelcastPrevayler((PrevaylerImpl<RootHolder>) prevayler, config.getReplication());
+				// HazelcastPrevayler can reset RootHolder, so re-retrieve it
+				rootHolder = prevayler.prevalentSystem();
 				contextRootConstructor.newInstance(new GCPreventingPrevayler(hazelcastPrevayler), rootHolder);
 			} else {
 				contextRootConstructor.newInstance(new GCPreventingPrevayler(prevayler), rootHolder);
 			}
 			
+			
 			if (!rootHolder.isInitialized()) {
+				System.out.println("fresh copy, initializing root");
 				prevayler.execute(new InitRootTransaction((Class)rootClass));
 			}
 			rootHolder.onRecoveryCompleted(!config.getReplication().isEnabled());
@@ -178,11 +182,11 @@ public class Chainvayler<T> {
 	}
 	
 	/** Returns the version (transaction count) of the @Chained object graph when last snapshot is taken. 
-	 * returns -1 if no snapshots are taken so far.
+	 * returns 0 if no snapshots are taken so far.
 	 * @see {{@link #takeSnapshot()} */
 	public static long getLastSnapshotVersion() throws IOException {
 		File file = getInstance().prevaylerDirectory.latestSnapshot();
-		return (file == null) ? -1 : PrevaylerDirectory.snapshotVersion(file);
+		return (file == null) ? 0 : PrevaylerDirectory.snapshotVersion(file);
 	}
 	
 	public static long getTransactionCount() throws Exception {

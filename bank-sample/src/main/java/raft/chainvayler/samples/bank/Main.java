@@ -52,11 +52,11 @@ public class Main {
 		if (options.peerStatsRegistry != null) 
 			registerPeerRmi();
 		
-		// TODO remove
-		Context.DEBUG = options.debug;
-		
 		if (options.registerShutdownHook)
 			registerShutdownHook();
+		
+		// TODO remove
+		Context.DEBUG = options.debug;
 		
 		Bank bank = Chainvayler.create(Bank.class, config);
 		
