@@ -415,6 +415,8 @@ However, the overall system is `strongly consistent` for `writes`. That is, once
 
 In other words, provided all changes are deterministic, any `@Modification` method invocation on any JVM is guaranteed to be executed on the exact same data.
 
+Presumably, it’s also possible to make the overall system `strongly consistent` for `reads`. This is achievable by marking the methods which require `consistent reads` with `@ConsistentRead` annotation and blocking the method until latest transaction in the network is committed locally.
+
 ## [Performance and Scalability](#performance-and-scalability)
 
 As all objects are always in memory, assuming proper synchronization, reads should be lightning fast. Nothing can beat the performance of reading an object from memory. In most cases you can expect read times `< 1` milliseconds even for very complex data structures. With todays modern hardware, iterating over a `Map` with one million entries barely takes a few milliseconds. Compare that to _full table scan_ over un-indexed columns in relational databases ;)
