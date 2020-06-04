@@ -11,10 +11,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -82,6 +84,8 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	private static final long TX_EXPIRE_PERIOD = 20 * 1000;
 	
 	private static final long TX_EXPIRE_CHECK_PERIOD = 1000;
+	
+	private static int MAX_TRANSACTIONS_PER_BATCH = 100000;
 	
 	private final Prevayler<RootHolder> prevayler;
 	private final TransactionPublisher publisher;
@@ -263,6 +267,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 
 		final Request request = new Request(startTx, txId, UUID.randomUUID());
 		final boolean[] receivedResponse = { false };
+		final Set<Integer> receivedBatches = new HashSet<>(); 
 		
 		ITopic<Response> responseTopic = hazelcast.getReliableTopic(request.uuid.toString());
 		responseTopic.addMessageListener(new MessageListener<HazelcastPrevayler.Response>() {
@@ -272,8 +277,8 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 				try {
 					final Response response = message.getMessageObject();
 					
-					System.out.printf("received response to request: %s, snapshotVersion: %s, transactions [%s - %s] \n",
-							request.uuid, response.snapshotVersion, response.transactions.get(0).systemVersion(), response.transactions.get(response.transactions.size()-1).systemVersion());
+					System.out.printf("received response to request: %s, batch: %s, batch count: %s, snapshotVersion: %s, transactions [%s - %s] \n",
+							request.uuid, response.batchNo, response.batchCount, response.snapshotVersion, response.transactions.get(0).systemVersion(), response.transactions.get(response.transactions.size()-1).systemVersion());
 					
 					if (response.snapshotVersion > 0) {
 						System.out.printf("response has snapshot, version: %s, setting snapshot fields \n", response.snapshotVersion);
@@ -299,22 +304,26 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 					response.transactions.forEach(tx -> localTxMap.put(tx.systemVersion(), tx));
 					
 					synchronized (receivedResponse) {
-						receivedResponse[0] = true;
-						receivedResponse.notify();
-					}
-					
-					responseTopic.destroy();
-					System.out.printf("destroyed the responseTopic for uuid: %s \n", request.uuid);
-					
-					TimerTask timerTask = new TimerTask() {
-						@Override
-						public void run() {
-							IAtomicReference<?> reference = hazelcast.getCPSubsystem().getAtomicReference(request.uuid.toString());
-							reference.destroy();
-							System.out.printf("destroyed the IAtomicReference for uuid: %s \n", request.uuid);
+						receivedBatches.add(response.batchNo);
+						
+						if (receivedBatches.size() == response.batchCount) {
+							receivedResponse[0] = true;
+							receivedResponse.notify();
+
+							responseTopic.destroy();
+							System.out.printf("destroyed the responseTopic for uuid: %s \n", request.uuid);
+							
+							TimerTask timerTask = new TimerTask() {
+								@Override
+								public void run() {
+									IAtomicReference<?> reference = hazelcast.getCPSubsystem().getAtomicReference(request.uuid.toString());
+									reference.destroy();
+									System.out.printf("destroyed the IAtomicReference for uuid: %s \n", request.uuid);
+								}
+							};
+							new Timer().schedule(timerTask, MINUTE);
 						}
-					};
-					new Timer().schedule(timerTask, MINUTE);
+					}
 					
 				} catch (Exception e) {
 					e.printStackTrace();
@@ -649,7 +658,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 	}
 
 	
-	private Response createResponse(Request request) throws Exception {
+	private List<Response> createResponse(Request request) throws Exception {
 		RootHolder rootHolder = null;
 		long snapshotVersion = 0;
 		long lastSnapshotVersion = Chainvayler.getLastSnapshotVersion();
@@ -664,25 +673,46 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			System.out.printf("snapshot version: %s, snapshot file: %s \n", snapshotVersion, snapshotFile);
 		}
 		
-		List<TransactionTimestamp> transactions = new ArrayList<>();
+		List<List<TransactionTimestamp>> transactions = new ArrayList<>();
+		transactions.add(new ArrayList<>());
 		
 		// we are not doing anything related to pool
 		// but since all journal.append calls are guarded with poolLock, we use the same lock here
 		// to avoid concurrent modification exception
 		Context.getInstance().poolLock.lock();
 		try {
+			int batch[] = { 0 };
+			int count[] = { 0 };
+			
 			journal.update(new TransactionSubscriber() {
 				@Override
 				public void receive(TransactionTimestamp transactionTimestamp) {
-					if (transactionTimestamp.systemVersion() <= request.toTx)
-						transactions.add(transactionTimestamp);
+					if (transactionTimestamp.systemVersion() <= request.toTx) {
+						count[0]++;
+						if (count[0] >= MAX_TRANSACTIONS_PER_BATCH) {
+							count[0] = 0;
+							batch[0]++;
+							transactions.add(new ArrayList<>());
+						}
+						
+						transactions.get(batch[0]).add(transactionTimestamp);
+					}
 				}
 			}, Math.max(snapshotVersion + 1,  request.fromTx));
 	
-			System.out.printf("got transactions from journal, first: %s, last: %s \n", 
-					transactions.get(0).systemVersion(), transactions.get(transactions.size()-1).systemVersion());
-			
-			return new Response(rootHolder, snapshotVersion, transactions);
+			System.out.printf("got transactions from journal, first: %s, last: %s, batches: %s \n", 
+					transactions.get(0).get(0).systemVersion(), transactions.get(batch[0]).get(transactions.get(batch[0]).size()-1).systemVersion(), transactions.size());
+
+			List<Response> responses = new ArrayList<>();
+			for (int i = 0; i <= batch[0]; i++) {
+				if (i == 0) {
+					// first batch
+					responses.add(new Response(rootHolder, snapshotVersion, transactions.get(i), i, batch[0] + 1));
+				} else {
+					responses.add(new Response(transactions.get(i), i, batch[0] + 1));
+				}
+			}
+			return responses;
 		} finally {
 			Context.getInstance().poolLock.unlock();
 		}
@@ -788,9 +818,9 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 					return;
 				}
 
-				Response response = createResponse(request);
-				hazelcast.getReliableTopic(request.uuid.toString()).publish(response);
-				System.out.printf("sent response to request: %s \n", request.uuid);
+				List<Response> responses = createResponse(request);
+				responses.forEach(response -> hazelcast.getReliableTopic(request.uuid.toString()).publish(response));
+				System.out.printf("sent %s response(s) to request: %s \n", responses.size(), request.uuid);
 				
 				atomicRef.set(true);
 			} catch (Exception e) {
@@ -946,11 +976,19 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		final RootHolder rootHolder;
 		final long snapshotVersion;
 		final List<TransactionTimestamp> transactions;
+		final int batchNo;
+		final int batchCount;
 		
-		Response(RootHolder rootHolder, long snapshotVersion, List<TransactionTimestamp> transactions) {
+		Response(List<TransactionTimestamp> transactions, int batchNo, int batchCount) {
+			this(null, 0, transactions, batchNo, batchCount);
+		}
+		
+		Response(RootHolder rootHolder, long snapshotVersion, List<TransactionTimestamp> transactions, int batchNo, int batchCount) {
 			this.rootHolder = rootHolder;
 			this.snapshotVersion = snapshotVersion;
 			this.transactions = transactions;
+			this.batchNo = batchNo;
+			this.batchCount = batchCount;
 		}
 	}
 	
