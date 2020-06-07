@@ -133,7 +133,6 @@ public class Chainvayler<T> {
 				contextRootConstructor.newInstance(new GCPreventingPrevayler(prevayler), rootHolder);
 			}
 			
-			
 			if (!rootHolder.isInitialized()) {
 				System.out.println("fresh copy, initializing root");
 				prevayler.execute(new InitRootTransaction((Class)rootClass));

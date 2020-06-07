@@ -263,7 +263,6 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		// the very first TX, #1, is always local (InitRootTransaction) and never stored at Hazelcast
 		// so will request TXs either starting from 2 or local lastTxId+1, whichever bigger
 		long startTx = Math.max(2, lastTxId + 1);
-		System.out.printf("requesting initial transactions [%s - %s] \n", startTx, txId);
 
 		final Request request = new Request(startTx, txId, UUID.randomUUID());
 		final boolean[] receivedResponse = { false };
@@ -333,13 +332,14 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 		
 		int retryCount = 0;
 		
-		while (!receivedResponse[0] && retryCount < maxRetries) {
+		while (!receivedResponse[0] && (retryCount < maxRetries)) {
+			retryCount++;
+			System.out.printf("requesting initial transactions [%s - %s], retryCount: %s \n", startTx, txId, retryCount);
 			requestsTopic.publish(request);
 			
 			synchronized (receivedResponse) {
 				receivedResponse.wait(20000); // 20 seconds
 			}
-			retryCount++;
 		}
 		
 		if (!receivedResponse[0])
@@ -771,7 +771,7 @@ public class HazelcastPrevayler implements Prevayler<RootHolder> {
 			
 			expiredTxs.forEach(tx -> localTxMap.put(tx.systemVersion(), tx));
 			
-			lastExpiredTxId = expiredTxs.get(expiredTxs.size()-1).systemVersion();
+			lastExpiredTxId = Math.max(lastExpiredTxId, expiredTxs.get(expiredTxs.size()-1).systemVersion());
 			
 			try {
 				if (initialized) {
