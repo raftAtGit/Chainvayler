@@ -17,7 +17,7 @@
   * [Garbage collection](#garbage-collection)
   * [Clean shutdown](#clean-shutdown)
 * [FAQ and more](#faq-and-more)
-* [Conclusion](#conclusion)
+* [Status and Conclusion](#status-and-conclusion)
 
 ## [What is this?](#what-is-this)
 
@@ -188,9 +188,7 @@ received all initial transactions [40154 - 69079], count: 28926
 ```
 In this case, the first 40153 transactions are loaded from the disk, next 28926 are retrieved from the network.
 
-__Note:__ When replication is enabled, most of the time pods recover successfully after a kill/restart cycle. But still sometimes they cannot properly connect to Hazelcast cluster or some of the initial transactions get lost. Not sure if this is a misconfuguration by myself or Hazelcast is not bullet proof.
-
-__Important__: Do not kill writer pods with `-9` switch before they are completed. This will hang the whole system. See [clean shutdown](#clean-shutdown) for details.
+__Note:__ When replication is enabled, most of the time pods recover successfully after a kill/restart cycle. But still sometimes they cannot properly connect to Hazelcast cluster. Not sure if this is a misconfuguration by myself or Hazelcast is not bullet proof.
 
 ### [Running the sample locally](#bank-sample-run-local)
 
@@ -334,7 +332,9 @@ Before a transaction is committed locally, a global transaction ID is retrieved 
 
 Hazelcast's _IAtomicLong_ uses _Raft_ consensus algorithm behind the scenes and is [CP](https://hazelcast.com/blog/hazelcast-imdg-3-12-introduces-cp-subsystem/) (consistent and partition tolerant) in regard to [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) and so is _Chainvayler_. 
 
-_Chainvayler_ uses Hazelcast's [IMap](https://docs.hazelcast.org/docs/latest/javadoc/com/hazelcast/map/IMap.html) data structure to replicate transactions among JVM's. Possibly, this can be replaced with some other mechanism, for example with [Redis pub/sub](https://redis.io/topics/pubsub), should be benchmarked to see which one performs better.
+_Chainvayler_ uses Hazelcast's reliable [ITopic](https://docs.hazelcast.org/docs/latest/manual/html-single/#reliable-topic) data structure to replicate transactions among JVM's. `ITopic` is basically a pub/sub implementation of Hazelcast backed by Hazelcast's [Ringbuffer](https://docs.hazelcast.org/docs/latest/manual/html-single/#ringbuffer).
+
+`ITopic` is only used for replicating new transactions on the fly. When a new _Chainvayler_ instance is joined to a cluster and doesn't have the transactions up to that point, it retrieves the missing transactions and a snaphot (if exists) from other peers in P2P manner, initializes itself and continues retrieving new transactions via `ITopic`.
 
 _Chainvayler_ also makes use of some ugly hacks to integrate with _Prevayler_. In particular, it uses _reflection_ to access _Prevayler_ [internals](https://github.com/raftAtGit/Chainvayler/blob/master/chainvayler/src/main/java/raft/chainvayler/impl/HazelcastPrevayler.java)
 as _Prevayler_ was never meant to be extened this way. Obviously, this is not optimal, but please just remember this is just a PoC project ;) Possibly the way to go here is, enhancing _Prevayler_ 
@@ -423,10 +423,12 @@ As all objects are always in memory, assuming proper synchronization, reads shou
 
 Furthemore, reads are almost linearly scalable. Add more nodes to your cluster and your lightning fast reads will scale-out.
 
-However, as it's now, writes are not scalable. The overall write performance of the system decreases as more nodes are added. But hopefully/possibly there is room for improvement here. 
+However, as it's now, writes are slightly scalable. The overall write performance of the system first increases and then decreases as more nodes are added. 
 
-Below chart shows the overall write performance with respect to number replicas. Tested on an AWS EKS cluster with 4 `d2.xlarge` nodes.
-![Overall write performance](https://chainvayler-public.s3-us-west-2.amazonaws.com/images/chart_overall_write_performance.png)
+Below chart shows the overall write performance with respect to number replicas. Tested on an AWS EKS cluster with 4 `d2.xlarge` nodes. Compare it to previous implementation based on [Hazelcast IMap](https://github.com/raftAtGit/Chainvayler/tree/old/Hazelcast_IMap_transactions#performance-and-scalability), there is improvement both on performance and scalability. Hopefully/possibly there is still room for improvement here. 
+![Overall write performance](https://chainvayler-public.s3-us-west-2.amazonaws.com/images/chart_overall_write_performance_topic.png)
+
+BTW, the weird fluctuations based on odd/even number of replicas is not a coincidence or typo. Tested it several times. Possibly related to some internals of Hazelcast.
 
 And this one shows local (no replication) write performance with respect to number of writer threads. Tested on an AWS `d2.xlarge` VM (without Kubernetes)
 ![Local write performance](https://chainvayler-public.s3-us-west-2.amazonaws.com/images/chart_local_write_performance.png)
@@ -496,11 +498,11 @@ Maybe, one possible solution is, injecting some _finalizer_ code to _chained_ ob
 
 ### [Clean shutdown](#clean-shutdown)
 
-When _replication_ is enabled, clean shutdown is very important. In particular, if a node reserves a transaction ID in the network and dies before sending the transaction to the network, the whole network will hang, they will wait indefinitely to receive that missing transaction. 
+When _replication_ is enabled, clean shutdown is very important. In particular, if a node reserves a transaction ID in the network and dies before sending the transaction to the network, the whole network will hang for some period (20 seconds) for writes, they will wait to receive that missing transaction. After that period they will assume the sending peer died and send the network a `NoOp` transaction with that ID so the rest of the network can continue operating.
 
-The _Bank_ sample registers a shutdown hook to the JVM and shutdowns _Chainvayler_ when JVM shutdown is initiated. This works fine for demonstration purposes unless JVM is killed with `-9 (-SIGKILL)` switch or a power outage happens.
+On a healthy system (enough memory for all peers and good network connection) this will most possibly cover **> 99%** cases. However blocking the network for 20 seconds is not nice and there is also one problematic case where assumed dead peer comes back and sends the network its missing transaction(s). Peers detect this case and closes local _Chainvayler_ instance for further writes for the sake of preserving consistency.
 
-But obviously this is not a bullet proof solution. A possible general solution is, if an awaited transaction is not received after some time, assume sending peer died and send the network a `NoOp` transaction with that ID, so the rest of the network can continue operating.
+The root cause of this problem is, retrieving the transaction ID and sending the actual transaction to the network is not an atomic operation, it consists of two consecutive steps. Possibly, the actual bullet proof solution, which will also prevent any network hangs, will be combining two operations into a single atomic one. Unfortunately, unless I'm not missing something, _Hazelcast_ does not provide any mechanism to achieve this.
 
 ## [FAQ and more](#faq-and-more)
 
@@ -524,21 +526,41 @@ With _Chainvayler_ there is almost no limit for what data structures can be used
 
 As mentioned, when a node is restarted or joined to a cluster, it executes all transactions up to that point (retrieved either from disk or from network). This can be time consuming if there are already many transactions in place.
 
-To accelerate this process, _root_ object can be casted to [Storage](https://github.com/raftAtGit/Chainvayler/blob/master/chainvayler/src/main/java/raft/chainvayler/Storage.java) interface and a snapshot can be taken. 
-
-For example, for the _Bank_ sample:
+A snapshot can be taken to accelerate this process, via the call:
 ```
-((Storage)bank).takeSnapshot();
+Chainvayler.takeSnapshot();
 ```
 
-Taking snaphot _serializes_ the _root_ object to disk. Restarts after that point, loads the _serialized_ copy of the _root_ object and executes transactions which happened only after that point.
+Taking snaphot _serializes_ the _root_ object and all objects which are accessible from the _root_ object to disk. Restarts after that point, loads the _serialized_ copy of the _root_ object and executes transactions which happened only after that point.
 
-The injected `takeSnapshot` method uses _Prevayler's_ 
-[takeSnapshot](http://prevayler.org/apidocs/2.6/org/prevayler/Prevayler.html#takeSnapshot()) method.
+## [Status and Conclusion](#status-and-conclusion)
 
-## [Conclusion](#conclusion)
+I've said _Chainvayler_ is a PoC (proof of concept) library but actually it's more than a PoC. 
+
+It's stable as it's now. I'm safely saying this since even a single transaction is missed or executed in wrong order, or a single object gets an incorrect ID, the test runs will fail. 
+
+The main point of improvement is, handling disaster scenarios in replication mode.
+
+Lets break the status into two parts:
+
+### Persistence
+
+I won’t hesitate to use _Chainvayler's_ persistence only mode **in production** for desktop and Android applications right now. 
+
+### Replication
+
+Replication mode, with or without persistence, is the PoC, but getting closer to be production ready. Compare the [limitations](https://github.com/raftAtGit/Chainvayler/tree/old/Hazelcast_IMap_transactions#limitations) and [performance](https://github.com/raftAtGit/Chainvayler/tree/old/Hazelcast_IMap_transactions#performance-and-scalability) sections of previous implementation to current status.
+
+Once it’s production ready, it can be used in different domains with several benefits:
+
+* Much simpler and natural object oriented code
+* Eliminate databases, persistence layers and all the relevant limitations
+* Lightning fast read performance
+* Any type of Java application which needs to persist data
+* If writes can be scaled-out more, at least to some level, _Chainvayler_ is a very good fit for microservices applications
+* Even not, it can still be a good fit for many microservices applications if they are read-centric
 
 So happy transparent persistence and replication to your POJOs :)
 
-Cheers,
+Cheers,<br/>
 _r a f t (Hakan Eryargi)_
