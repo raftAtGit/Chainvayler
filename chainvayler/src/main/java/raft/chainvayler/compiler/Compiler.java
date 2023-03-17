@@ -7,6 +7,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URLDecoder;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -22,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 import javassist.ClassClassPath;
 import javassist.ClassPool;
@@ -44,9 +49,9 @@ import javassist.bytecode.annotation.Annotation;
 import javassist.bytecode.annotation.ArrayMemberValue;
 import javassist.bytecode.annotation.ClassMemberValue;
 import javassist.bytecode.annotation.MemberValue;
+import raft.chainvayler.Chained;
 import raft.chainvayler.Include;
 import raft.chainvayler.Modification;
-import raft.chainvayler.Chained;
 import raft.chainvayler.Synch;
 import raft.chainvayler.impl.Context;
 import raft.chainvayler.impl.IsChained;
@@ -796,6 +801,26 @@ public class Compiler {
 			} finally {
 				jarFile.close();
 			}
+			
+		} else if (path.startsWith("jrt:/")) {
+			FileSystem fs = FileSystems.getFileSystem(URI.create("jrt:/"));
+			Path fPath = fs.getPath("modules", path.substring(4)); // drop jrt:/ part
+
+			for (Path p : Files.list(fPath.getParent()).collect(Collectors.toList())) {
+				Path subPath = p.subpath(2, p.getNameCount());
+//				System.out.println(subPath);
+				
+				if (subPath.getFileName().toString().endsWith(".class")) {
+					String pathString = subPath.toString();
+					String clsName = pathString.substring(0, pathString.length() - 6).replace('/', '.'); // omit the .class part
+					result.add(classPool.get(clsName));
+					
+				} else if (Files.isDirectory(fPath)) {
+					if (scanSubPackages)
+						throw new UnsupportedOperationException("scanning subpackages is not implemented!");
+				} 
+			}
+			
 		} else { 
 			throw new IllegalStateException("could not scan package: " + path);
 		}
