@@ -6,7 +6,7 @@ COPY . /chainvayler-bank-sample
 WORKDIR /chainvayler-bank-sample
 RUN gradle clean instrument build copyDependencyJars
 
-FROM openjdk:8-jre-alpine
+FROM openjdk:11-jre-alpine
 # FROM openjdk:8
 
 COPY --from=builder /chainvayler-bank-sample/build/libs/chainvayler-bank-sample-0.1.jar /chainvayler-bank-sample/libs/
