@@ -97,7 +97,7 @@ The easiest way to see _Chainvayler_ in action is to run the _Bank_ sample in _K
 
 In `Chainvayler/bank-sample` folder, run the following command:
 ```
-helm install kube/chainvayler-bank-sample/ --name chainvayler-sample 
+helm install chainvayler-sample kube/chainvayler-bank-sample/  
 ```
 
 This will by default create 3 writer pods and the watcher application `peer-stats` to follow the process. Any writer or reader pods will register themselves to `peer-stats` pod via RMI and you can follow the process via `peer-stats` pod's logs:
@@ -171,7 +171,7 @@ Feel free to try different settings: more writers, some readers, some writer-rea
 
 For example, lets create additional 2 readers:
 ```
-helm install kube/chainvayler-bank-sample/ --name chainvayler-sample --set replication.readerCount=2 --set load.actions=5000
+helm install chainvayler-sample kube/chainvayler-bank-sample/ --set replication.readerCount=2 --set load.actions=5000
 ```
 Increased the action count, so we will have more time until they are completed. Kill any pod any time, when restarted, they will retrieve the initial state and catch the others.
 
