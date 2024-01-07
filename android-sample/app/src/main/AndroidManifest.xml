@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    package="raft.chainvayler.samples.android">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:name=".LibraryApplication"
@@ -13,7 +12,7 @@
         android:label="Chainvayler Babel Library"
         android:theme="@style/AppTheme.NoActionBar">
 
-        <activity android:name=".activity.MainActivity">
+        <activity android:name=".activity.MainActivity" android:exported="true" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

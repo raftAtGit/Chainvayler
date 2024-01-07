@@ -6,8 +6,7 @@ repositories {
 }
 
 android {
-    compileSdkVersion 29
-    buildToolsVersion "29.0.3"
+    compileSdk 34
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
@@ -17,9 +16,9 @@ android {
     defaultConfig {
         applicationId "raft.chainvayler.samples.android"
         minSdkVersion 24
-        targetSdkVersion 29
-        versionCode 1
-        versionName "1.0"
+        targetSdkVersion 34
+        versionCode 2
+        versionName "1.0.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -30,6 +29,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+    namespace 'raft.chainvayler.samples.android'
 }
 
 dependencies {
@@ -57,7 +57,7 @@ dependencies {
 afterEvaluate {
     android.applicationVariants.each { variant ->
         variant.javaCompileProvider.configure {
-            def javaPath = it.classpath + files(it.destinationDir)
+            def javaPath = it.classpath + files(it.destinationDirectory)
 
             // below line is required only if Android specific classes (Log etc.) are used inside @Chained classes
             // javaPath += files(android.sdkDirectory.absolutePath + '/platforms/' + android.compileSdkVersion + '/android.jar')

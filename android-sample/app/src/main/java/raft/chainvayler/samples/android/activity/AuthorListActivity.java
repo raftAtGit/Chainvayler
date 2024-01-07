@@ -1,5 +1,6 @@
 package raft.chainvayler.samples.android.activity;
 
+import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
@@ -48,6 +49,7 @@ public class AuthorListActivity extends AppCompatActivity {
 
     private Set<String> countryFilter = new HashSet<>();
 
+    @SuppressLint("MissingInflatedId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

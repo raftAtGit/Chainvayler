@@ -29,21 +29,18 @@
             android:id="@+id/radio_read_all"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="onRadioButtonClicked"
             android:text="Show all" />
 
         <RadioButton
             android:id="@+id/radio_read_read"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="onRadioButtonClicked"
             android:text="Read only" />
 
         <RadioButton
             android:id="@+id/radio_read_unread"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="onRadioButtonClicked"
             android:text="Unread only" />
     </RadioGroup>
 
@@ -69,21 +66,18 @@
             android:id="@+id/radio_favorite_all"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="onRadioButtonClicked"
             android:text="Show all" />
 
         <RadioButton
             android:id="@+id/radio_favorite_favorite"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="onRadioButtonClicked"
             android:text="Favorite only" />
 
         <RadioButton
             android:id="@+id/radio_favorite_unfavorite"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:onClick="onRadioButtonClicked"
             android:text="Unfavorite only" />
     </RadioGroup>
 
