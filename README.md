@@ -39,7 +39,7 @@ Sounds too good to be true? Well, keep reading... ;)
 As mentioned, _Chainvayler_ only requires some `@Annotations` and conforming a few rules.
 
 Here is a quick sample:
-```
+```java
 @Chained
 class Library {
    final Map<Integer, Book> books = new HashMap<>();
@@ -54,11 +54,11 @@ class Library {
 ```
 Quite a _Plain Old Java Object_, isn't it? Run the __Chainvayler compiler__ after __javac__ and then to get a reference to a chained instance:
 
-```
+```java
 Library library = Chainvayler.create(Library.class);
 ```
 or this variant to configure options:
-```
+```java
 Library library = Chainvayler.create(Library.class, config);
 ```
 
@@ -96,13 +96,13 @@ There is also an [emulated Bank sample](https://github.com/raftAtGit/Chainvayler
 The easiest way to see _Chainvayler_ in action is to run the _Bank_ sample in _Kubernetes_ via provided _Helm_ charts.
 
 In `Chainvayler/bank-sample` folder, run the following command:
-```
+```bash
 helm install chainvayler-sample kube/chainvayler-bank-sample/  
 ```
 
 This will by default create 3 writer pods and the watcher application `peer-stats` to follow the process. Any writer or reader pods will register themselves to `peer-stats` pod via RMI and you can follow the process via `peer-stats` pod's logs:
 
-```
+```bash
 kubectl logs chainvayler-peer-stats-<ID> --follow
 ```
 
@@ -170,7 +170,7 @@ Welcome to _Chainvayler_ world! You just witnessed a POJO graph is _automagicall
 Feel free to try different settings: more writers, some readers, some writer-readers or more write actions. See the [values.yaml](bank-sample/kube/chainvayler-bank-sample/values.yaml) file for all options.
 
 For example, lets create additional 2 readers:
-```
+```bash
 helm install chainvayler-sample kube/chainvayler-bank-sample/ --set replication.readerCount=2 --set load.actions=5000
 ```
 Increased the action count, so we will have more time until they are completed. Kill any pod any time, when restarted, they will retrieve the initial state and catch the others.
@@ -195,13 +195,13 @@ __Note:__ When replication is enabled, most of the time pods recover successfull
 It's also possible to run the _Bank_ sample without Kubernetes. 
 
 First, lets build and publish _Chainvayler_ to local Maven repository: 
-```
+```bash
 # run in chainvayler/ folder
 ./gradlew clean build publishToMavenLocal
 ```
 
 Then build and instrument the _Bank_ sample:
-```
+```bash
 # run in bank-sample/ folder
 ./gradlew clean instrument build
 ```
@@ -211,13 +211,13 @@ You will see the verbose output of _Chainvayler_ compiler, the packages and clas
 #### Persisted only
 
 Start the _stats registry_ so we can watch the process:
-```
+```bash
 # run in bank-sample/ folder
 ./gradlew runStatsRegistry
 ```
 
 In another terminal, run the sample in persisted mode:
-```
+```bash
 # run in bank-sample/ folder
 ./gradlew runPersisted
 ```
@@ -229,13 +229,13 @@ By default, transactions are saved to `persist/<Root class name>` folder. So in 
 #### Replicated only
 
 Start the _stats registry_ so we can watch the process:
-```
+```bash
 # run in bank-sample/ folder
 ./gradlew runStatsRegistry
 ```
 
 Open at least 3 more terminals and run the sample in replicated mode:
-```
+```bash
 # run in bank-sample/ folder
 ./gradlew runReplicated
 ```
@@ -246,7 +246,7 @@ Hazelcast's CP subsystem requires at least 3 _Raft_ nodes, so you should run at 
 Since transactions are written to `persist` folder inside `bank-sample` folder, in persisted and replicated mode, you ned to run them in different folders.
 
 Make 2 more copies of `bank-sample` folder:
-```
+```bash
 # run in root folder
 
 # first make sure we make a clean start
@@ -257,13 +257,13 @@ cp -r bank-sample bank-sample-3
 ```
 
 Start the _stats registry_ so we can watch the process:
-```
+```bash
 # run in bank-sample/ folder
 ./gradlew runStatsRegistry
 ```
 
 Open 3 more terminals and run the sample in persisted and replicated mode:
-```
+```bash
 # run in bank-sample/ folder
 ./gradlew runPersistedReplicated
 
@@ -293,7 +293,7 @@ Here comes into scene [Postvayler](https://github.com/raftAtGit/Postvayler). It'
 Postvayler injects bytecode into (instruments) __javac__ compiled `@Chained` classes such that every `@Modification` method in a `@Chained` class is modified to execute that method via `Prevayler`.
 
 For example, the `addBook(Book)` method in the introduction sample becomes something like (omitting some details for readability):
-```
+```java
 void addBook(Book book) {
   if (! there is Postvayler context) {
      // no persistence, just proceed to original method
@@ -349,13 +349,13 @@ Possibly, instrumentation of constructors are the most complicated part of _Chai
 First, as mentioned before, except the _root_ object of the _chained_ object graph, creating instances of _chained_ classes are done in regular ways, either with the _new_ oprerator, or via factories, builders whatever.
 
 For example, here is a couple of code fragments from the [_Bank_](https://github.com/raftAtGit/Chainvayler/blob/master/bank-sample/src/main/java/raft/chainvayler/samples/bank/Main.java) sample to create objects:
-```
+```java
 Bank other = new Bank();
 ```
-```
+```java
 Customer customer = new Customer(<name>);
 ```
-```
+```java
 Customer customer = bank.createCustomer(<name>);
 ```
 They look quite POJO way, right?
@@ -447,7 +447,7 @@ In contrast, random operations are deterministic as long as you use the same see
 
 Another source of indeterminism is depending on the data provided by external actors, for example sensor data or stock market data. For these kind of situations, relevant `@Modification` methods should accept the data as method arguments. For example, below sample is completely safe:
 
-```
+```java
 @Chained
 class SensorRecords {
   List<Record> records = new ArrayList<>();
@@ -473,7 +473,7 @@ JVM session it's running on.
 _Audits_ in the [Bank](https://github.com/raftAtGit/Chainvayler/blob/master/bank-sample/src/main/java/raft/chainvayler/samples/bank/Bank.java) sample demonstrates usage of clock facility.
 
 Clock facility can also be used for deterministic randomness. For example:
-```
+```java
 @Modification
 void doSomethingRandom() {
   Random random = new Random(Clock.nowMillis());
@@ -527,7 +527,7 @@ With _Chainvayler_ there is almost no limit for what data structures can be used
 As mentioned, when a node is restarted or joined to a cluster, it executes all transactions up to that point (retrieved either from disk or from network). This can be time consuming if there are already many transactions in place.
 
 A snapshot can be taken to accelerate this process, via the call:
-```
+```java
 Chainvayler.takeSnapshot();
 ```
 
